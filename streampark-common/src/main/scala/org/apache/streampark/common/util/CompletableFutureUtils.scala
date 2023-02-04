@@ -18,7 +18,7 @@
 package org.apache.streampark.common.util
 
 import java.util.concurrent.{Callable, CompletableFuture, ScheduledThreadPoolExecutor, ThreadFactory, TimeUnit, TimeoutException}
-import java.util.function.{Consumer, Function => JavaFunc}
+import java.util.function.{BiConsumer, Consumer, Function => JavaFunc}
 
 object CompletableFutureUtils {
 
@@ -39,20 +39,33 @@ object CompletableFutureUtils {
     delayer
   }
 
-  def setTimeout[T](timeout: Long, unit: TimeUnit): CompletableFuture[T] = {
+  private[this] def setTimeout[T](timeout: Long, unit: TimeUnit): CompletableFuture[T] = {
     val result = new CompletableFuture[T]
-    completableDelayer.schedule(new Callable[Boolean] {
-      override def call(): Boolean = result.completeExceptionally(new TimeoutException)
-    }, timeout, unit)
+    completableDelayer.schedule(
+      new Callable[Boolean] {
+        override def call(): Boolean = result.completeExceptionally(new TimeoutException)
+      },
+      timeout,
+      unit)
     result
   }
 
-  def supplyTimeout[T](future: CompletableFuture[T],
-                       timeout: Long,
-                       unit: TimeUnit,
-                       handle: JavaFunc[T, T],
-                       exceptionally: JavaFunc[Throwable, T]): CompletableFuture[T] = {
-    future.applyToEither(setTimeout(timeout, unit), handle).exceptionally(exceptionally)
+  def supplyTimeout[T](
+      future: CompletableFuture[T],
+      timeout: Long,
+      unit: TimeUnit,
+      handle: JavaFunc[T, T],
+      exceptionally: JavaFunc[Throwable, T]): CompletableFuture[T] = {
+    future
+      .applyToEither(setTimeout(timeout, unit), handle)
+      .exceptionally(exceptionally)
+      .whenComplete(new BiConsumer[T, Throwable]() {
+        override def accept(t: T, u: Throwable): Unit = {
+          if (!future.isDone) {
+            future.cancel(true)
+          }
+        }
+      })
   }
 
   /**
@@ -65,21 +78,31 @@ object CompletableFutureUtils {
    * @param handle        The handler will be called when future complete normally before timeout.
    * @param exceptionally The exceptionally will be called when future completed exceptionally or future isn't done after timeout.
    */
-  def runTimeout[T](future: CompletableFuture[T],
-                    timeout: Long,
-                    unit: TimeUnit,
-                    handle: Consumer[T],
-                    exceptionally: Consumer[Throwable]): CompletableFuture[Unit] = {
-    future.applyToEither(setTimeout(timeout, unit), new JavaFunc[T, Unit] {
-      override def apply(t: T): Unit = {
-        if (handle != null) {
-          handle.accept(t)
+  def runTimeout[T](
+      future: CompletableFuture[T],
+      timeout: Long,
+      unit: TimeUnit,
+      handle: Consumer[T],
+      exceptionally: Consumer[Throwable]): CompletableFuture[Unit] = {
+
+    future.applyToEither(
+      setTimeout(timeout, unit),
+      new JavaFunc[T, Unit]() {
+        override def apply(t: T): Unit = {
+          if (handle != null) {
+            handle.accept(t)
+          }
         }
-      }
-    }).exceptionally(new JavaFunc[Throwable, Unit] {
+      }).exceptionally(new JavaFunc[Throwable, Unit]() {
       override def apply(t: Throwable): Unit = {
         if (exceptionally != null) {
           exceptionally.accept(t)
+        }
+      }
+    }).whenComplete(new BiConsumer[Unit, Throwable]() {
+      override def accept(t: Unit, u: Throwable): Unit = {
+        if (!future.isDone) {
+          future.cancel(true)
         }
       }
     })
@@ -88,13 +111,7 @@ object CompletableFutureUtils {
   def runTimeout[T](future: CompletableFuture[T],
                     timeout: Long,
                     unit: TimeUnit): CompletableFuture[Unit] = {
-    runTimeout(future, timeout, unit, null, new Consumer[Throwable] {
-      override def accept(t: Throwable): Unit = {
-        if (!future.isDone) {
-          future.cancel(true)
-        }
-      }
-    })
+    runTimeout(future, timeout, unit, null, null)
   }
 
 }

@@ -16,7 +16,12 @@
  */
 import { dateToDuration } from '/@/utils/dateUtil';
 import { BasicColumn } from '/@/components/Table';
-import { ExecModeEnum, LaunchStateEnum, AppStateEnum } from '/@/enums/flinkEnum';
+import {
+  AppStateEnum,
+  ExecModeEnum,
+  FailoverStrategyEnum,
+  LaunchStateEnum,
+} from '/@/enums/flinkEnum';
 import { useI18n } from '/@/hooks/web/useI18n';
 const { t } = useI18n();
 
@@ -105,7 +110,7 @@ export const k8sRestExposedType = [
 ];
 
 export const executionModes = [
-  { label: 'remote (standalone)', value: ExecModeEnum.REMOTE, disabled: false },
+  { label: 'remote', value: ExecModeEnum.REMOTE, disabled: false },
   { label: 'yarn application', value: ExecModeEnum.YARN_APPLICATION, disabled: false },
   { label: 'yarn session', value: ExecModeEnum.YARN_SESSION, disabled: false },
   { label: 'kubernetes session', value: ExecModeEnum.KUBERNETES_SESSION, disabled: false },
@@ -120,10 +125,12 @@ export const executionModes = [
     disabled: false,
   },
 ];
+
 export const cpTriggerAction = [
-  { label: 'alert', value: 1 },
-  { label: 'restart', value: 2 },
+  { label: 'alert', value: FailoverStrategyEnum.ALERT },
+  { label: 'restart', value: FailoverStrategyEnum.RESTART },
 ];
+
 export const launchTitleMap = {
   [LaunchStateEnum.FAILED]: 'launch failed',
   [LaunchStateEnum.NEED_LAUNCH]: 'current job need relaunch',

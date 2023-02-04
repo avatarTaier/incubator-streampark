@@ -18,7 +18,7 @@ import { FormSchema } from '/@/components/Table';
 import { computed, h, Ref, ref, unref } from 'vue';
 import { executionModes } from '../data';
 import { fetchCheckHadoop } from '/@/api/flink/setting';
-import { ExecModeEnum } from '/@/enums/flinkEnum';
+import { AppTypeEnum, ConfigTypeEnum, ExecModeEnum } from '/@/enums/flinkEnum';
 
 import Icon, { SvgIcon } from '/@/components/Icon';
 import { useCreateAndEditSchema } from './useCreateAndEditSchema';
@@ -27,9 +27,8 @@ import { modules, fetchListConf, fetchListJars } from '/@/api/flink/project';
 import { RuleObject } from 'ant-design-vue/lib/form';
 import { StoreValue } from 'ant-design-vue/lib/form/interface';
 import { renderResourceFrom } from './useFlinkRender';
-import { filterOption } from '../utils';
+import { filterOption, getAppConfType } from '../utils';
 import { useI18n } from '/@/hooks/web/useI18n';
-import { AppTypeEnum } from '/@/enums/flinkEnum';
 const { t } = useI18n();
 
 const getJobTypeOptions = () => {
@@ -75,10 +74,8 @@ export const useCreateSchema = (dependencyRef: Ref) => {
   // }
   function handleCheckConfig(_rule: RuleObject, value: StoreValue) {
     if (value) {
-      const isProp = value.endsWith('.properties');
-      const isYaml = value.endsWith('.yaml') || value.endsWith('.yml');
-      const isConf = value.endsWith('.conf');
-      if (!isProp && !isYaml && !isConf) {
+      const confType = getAppConfType(value);
+      if (confType === ConfigTypeEnum.UNKNOWN) {
         return Promise.reject('The configuration file must be (.properties|.yaml|.yml |.conf)');
       } else {
         return Promise.resolve();
@@ -180,16 +177,21 @@ export const useCreateSchema = (dependencyRef: Ref) => {
         componentProps: {
           showSearch: true,
           optionFilterProp: 'children',
-          filterOption,
+          filterOption: (input: string, options: Recordable) => {
+            return options.name.toLowerCase().indexOf(input.toLowerCase()) >= 0;
+          },
           placeholder: t('flink.app.addAppTips.projectPlaceholder'),
           fieldNames: { label: 'name', value: 'id', options: 'options' },
           options: unref(projectList),
           onChange: (value: string) => {
-            modules({
-              id: value,
-            }).then((res) => {
-              moduleList.value = res.map((i: string) => ({ label: i, value: i }));
-            });
+            // When a valid value is entered, the module api needs to be sent
+            if (value) {
+              modules({
+                id: value,
+              }).then((res) => {
+                moduleList.value = res.map((i: string) => ({ label: i, value: i }));
+              });
+            }
           },
         },
         ifShow: ({ values }) => values?.jobType != 'sql' && values.resourceFrom != 'upload',

@@ -31,7 +31,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.net.MalformedURLException;
 import java.util.List;
 
 @Slf4j
@@ -40,62 +39,61 @@ import java.util.List;
 @RequestMapping("flink/cluster")
 public class FlinkClusterController {
 
-    @Autowired
-    private FlinkClusterService flinkClusterService;
+  @Autowired private FlinkClusterService flinkClusterService;
 
-    @PostMapping("list")
-    public RestResponse list() {
-        List<FlinkCluster> flinkClusters = flinkClusterService.list();
-        return RestResponse.success(flinkClusters);
-    }
+  @PostMapping("list")
+  public RestResponse list() {
+    List<FlinkCluster> flinkClusters = flinkClusterService.list();
+    return RestResponse.success(flinkClusters);
+  }
 
-    @PostMapping("activeUrl")
-    public RestResponse activeUrl(Long id) throws MalformedURLException {
-        FlinkCluster cluster = flinkClusterService.getById(id);
-        return RestResponse.success(cluster.getActiveAddress().toURL());
-    }
+  @PostMapping("remoteUrl")
+  public RestResponse remoteUrl(Long id) {
+    FlinkCluster cluster = flinkClusterService.getById(id);
+    return RestResponse.success(cluster.getAddress());
+  }
 
-    @PostMapping("check")
-    public RestResponse check(FlinkCluster cluster) {
-        ResponseResult checkResult = flinkClusterService.check(cluster);
-        return RestResponse.success(checkResult);
-    }
+  @PostMapping("check")
+  public RestResponse check(FlinkCluster cluster) {
+    ResponseResult checkResult = flinkClusterService.check(cluster);
+    return RestResponse.success(checkResult);
+  }
 
-    @PostMapping("create")
-    @RequiresPermissions("cluster:create")
-    public RestResponse create(FlinkCluster cluster) {
-        Boolean success = flinkClusterService.create(cluster);
-        return RestResponse.success(success);
-    }
+  @PostMapping("create")
+  @RequiresPermissions("cluster:create")
+  public RestResponse create(FlinkCluster cluster) {
+    Boolean success = flinkClusterService.create(cluster);
+    return RestResponse.success(success);
+  }
 
-    @PostMapping("update")
-    @RequiresPermissions("cluster:update")
-    public RestResponse update(FlinkCluster cluster) {
-        flinkClusterService.update(cluster);
-        return RestResponse.success();
-    }
+  @PostMapping("update")
+  @RequiresPermissions("cluster:update")
+  public RestResponse update(FlinkCluster cluster) {
+    flinkClusterService.update(cluster);
+    return RestResponse.success();
+  }
 
-    @PostMapping("get")
-    public RestResponse get(Long id) throws InternalException {
-        FlinkCluster cluster = flinkClusterService.getById(id);
-        return RestResponse.success(cluster);
-    }
+  @PostMapping("get")
+  public RestResponse get(Long id) throws InternalException {
+    FlinkCluster cluster = flinkClusterService.getById(id);
+    return RestResponse.success(cluster);
+  }
 
-    @PostMapping("start")
-    public RestResponse start(FlinkCluster cluster) {
-        flinkClusterService.start(cluster);
-        return RestResponse.success();
-    }
+  @PostMapping("start")
+  public RestResponse start(FlinkCluster cluster) {
+    flinkClusterService.start(cluster);
+    return RestResponse.success();
+  }
 
-    @PostMapping("shutdown")
-    public RestResponse shutdown(FlinkCluster cluster) {
-        flinkClusterService.shutdown(cluster);
-        return RestResponse.success();
-    }
+  @PostMapping("shutdown")
+  public RestResponse shutdown(FlinkCluster cluster) {
+    flinkClusterService.shutdown(cluster);
+    return RestResponse.success();
+  }
 
-    @PostMapping("delete")
-    public RestResponse delete(FlinkCluster cluster) {
-        flinkClusterService.delete(cluster);
-        return RestResponse.success();
-    }
+  @PostMapping("delete")
+  public RestResponse delete(FlinkCluster cluster) {
+    flinkClusterService.delete(cluster);
+    return RestResponse.success();
+  }
 }

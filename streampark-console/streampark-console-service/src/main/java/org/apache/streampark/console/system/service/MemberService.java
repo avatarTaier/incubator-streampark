@@ -20,6 +20,7 @@ package org.apache.streampark.console.system.service;
 import org.apache.streampark.console.base.domain.RestRequest;
 import org.apache.streampark.console.system.entity.Member;
 import org.apache.streampark.console.system.entity.Team;
+import org.apache.streampark.console.system.entity.User;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
@@ -28,24 +29,25 @@ import java.util.List;
 
 public interface MemberService extends IService<Member> {
 
-    void deleteByRoleIds(String[] roleIds);
+  void deleteByRoleIds(String[] roleIds);
 
-    void deleteByUserId(Long userId);
+  void deleteByUserId(Long userId);
 
-    void deleteByTeamId(Long teamId);
+  void deleteByTeamId(Long teamId);
 
-    IPage<Member> findUsers(Member member, RestRequest request);
+  IPage<Member> findUsers(Member member, RestRequest request);
 
-    List<Team> findUserTeams(Long userId);
+  List<User> findCandidateUsers(Long teamId);
 
-    Member findByUserName(Long teamId, String userName);
+  List<Team> findUserTeams(Long userId);
 
-    List<Long> findUserIdsByRoleId(Long roleId);
+  Member findByUserName(Long teamId, String userName);
 
-    void createMember(Member member);
+  List<Long> findUserIdsByRoleId(Long roleId);
 
-    void deleteMember(Member member);
+  void createMember(Member member);
 
-    void updateMember(Member member);
+  void deleteMember(Member member);
 
+  void updateMember(Member member);
 }

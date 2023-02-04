@@ -16,8 +16,9 @@
  */
 package org.apache.streampark.flink.core.test
 
-import org.apache.streampark.flink.core.{FlinkSqlValidationResult, FlinkSqlValidator}
 import org.scalatest.funsuite.AnyFunSuite
+
+import org.apache.streampark.flink.core.{FlinkSqlValidationResult, FlinkSqlValidator}
 
 // scalastyle:off println
 class FlinkSqlValidationFunSuite extends AnyFunSuite {
@@ -83,7 +84,7 @@ class FlinkSqlValidationFunSuite extends AnyFunSuite {
         |);
         |create database test;
         |
-        |create view test_view as
+        |create view if not exists a.b.test_view123 as
         |select id, name, age, fetch_millisecond() as millisecond
         |from source_kafka1;
         |
@@ -249,6 +250,5 @@ class FlinkSqlValidationFunSuite extends AnyFunSuite {
       assert(r.success == true)
     }
   }
-
 
 }

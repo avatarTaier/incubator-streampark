@@ -34,7 +34,6 @@ enum Api {
   Logout = '/passport/signout',
   GetUserInfo = '/getUserInfo',
   GetPermCode = '/getPermCode',
-  TestRetry = '/testRetry',
   UserList = '/user/list',
   NoTokenUsers = '/user/getNoTokenUser',
   UserUpdate = '/user/update',
@@ -66,7 +65,7 @@ export function loginApi(
  * @description: user login api (ldap)
  * @return {Promise<AxiosResponse<Result<LoginResultModel>>>}
  */
-export function loginLadpApi(
+export function loginLdapApi(
   data: LoginParams,
   mode: ErrorMessageMode = 'modal',
 ): Promise<AxiosResponse<Result<LoginResultModel>>> {
@@ -142,11 +141,11 @@ export function fetchUserTypes() {
 }
 /**
  * User change password
- * @param {String} username username
- * @param {String} password password
+ * @param data
  */
 export function fetchUserPasswordUpdate(data: {
-  username: string;
+  userId: string | number;
+  oldPassword: string;
   password: string;
 }): Promise<boolean> {
   return defHttp.put({

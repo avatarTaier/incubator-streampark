@@ -28,8 +28,9 @@
           >
         </a-radio-group>
         <a-input-search
+          v-model:value="searchValue"
           @search="handleSearch"
-          placeholder="please enter a keyword search"
+          :placeholder="t('flink.project.searchPlaceholder')"
           class="search-input"
         />
       </template>
@@ -48,9 +49,19 @@
             v-for="item in projectDataSource"
             :item="item"
             @view-log="handleViewLog"
-            @success="queryData"
+            @success="handleListItemSuccess"
           />
         </a-list>
+        <div class="text-center mt-10px">
+          <a-pagination
+            class="w-full"
+            showLessItems
+            hideOnSinglePage
+            :pageSize="pageInfo.pageSize"
+            :total="pageInfo.total"
+            @change="handlePageChange"
+          />
+        </div>
       </a-spin>
     </a-card>
     <LogModal @register="registerLogModal" />
@@ -61,7 +72,7 @@
 
   import { PageWrapper } from '/@/components/Page';
   import { statusList } from './project.data';
-  import { RadioGroup, Radio, Input, Card, List, Spin } from 'ant-design-vue';
+  import { RadioGroup, Radio, Input, Card, List, Spin, Pagination } from 'ant-design-vue';
   import { getList } from '/@/api/flink/project';
   import { ProjectRecord } from '/@/api/flink/project/model/projectModel';
   import ListItem from './components/ListItem.vue';
@@ -80,6 +91,7 @@
       ARadioGroup: RadioGroup,
       ARadioButton: Radio.Button,
       AInputSearch: Input.Search,
+      APagination: Pagination,
       ACard: Card,
       AList: List,
       ListItem,
@@ -94,8 +106,15 @@
       const [registerLogModal, { openModal: openLogModal }] = useModal();
       const buttonList = reactive(statusList);
       const loading = ref(false);
+      const buildState = ref('');
+      const searchValue = ref('');
+      const pageInfo = reactive({
+        currentPage: 1,
+        pageSize: 10,
+        total: 0,
+      });
 
-      const queryParams = reactive({
+      const queryParams = reactive<{ buildState: string; name?: string }>({
         buildState: '',
       });
 
@@ -106,20 +125,29 @@
       }
 
       function handleSearch(value: string) {
-        Object.assign(queryParams, { name: value });
+        queryParams.name = value;
+        pageInfo.currentPage = 1;
+        queryParams.name = searchValue.value;
         queryData();
       }
 
       function queryData(showLoading = true) {
         if (showLoading) loading.value = true;
-        getList({ ...queryParams, teamId: userStore.getTeamId }).then((res) => {
+        getList({
+          ...queryParams,
+          pageNum: pageInfo.currentPage,
+          pageSize: pageInfo.pageSize,
+        }).then((res) => {
           loading.value = false;
+          pageInfo.total = Number(res.total);
           projectDataSource.value = res.records;
         });
       }
 
-      const handleQuery = function (val) {
-        queryParams.buildState = val;
+      const handleQuery = function (val: string | undefined) {
+        pageInfo.currentPage = 1;
+        queryParams.buildState = val!;
+        queryParams.name = searchValue.value;
         queryData();
       };
 
@@ -135,7 +163,7 @@
       function handleViewLog(value: Recordable) {
         openLogModal(true, { project: value });
       }
-      // teamid update
+      // teamId update
       watch(
         () => userStore.getTeamId,
         (val) => {
@@ -148,9 +176,20 @@
       onUnmounted(() => {
         stop();
       });
-
+      function handlePageChange(val: number) {
+        pageInfo.currentPage = val;
+        queryParams.name = searchValue.value;
+        queryData();
+      }
+      function handleListItemSuccess() {
+        pageInfo.currentPage = 1;
+        queryData();
+      }
       return {
         t,
+        searchValue,
+        pageInfo,
+        buildState,
         buttonList,
         handleQuery,
         queryParams,
@@ -161,6 +200,8 @@
         registerLogModal,
         handleViewLog,
         queryData,
+        handlePageChange,
+        handleListItemSuccess,
       };
     },
   });

@@ -1,22 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-
-    Licensed to the Apache Software Foundation (ASF) under one or more
-    contributor license agreements.  See the NOTICE file distributed with
-    this work for additional information regarding copyright ownership.
-    The ASF licenses this file to You under the Apache License, Version 2.0
-    (the "License"); you may not use this file except in compliance with
-    the License.  You may obtain a copy of the License at
-
-       https://www.apache.org/licenses/LICENSE-2.0
-
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
-
--->
+  ~ Licensed to the Apache Software Foundation (ASF) under one or more
+  ~ contributor license agreements.  See the NOTICE file distributed with
+  ~ this work for additional information regarding copyright ownership.
+  ~ The ASF licenses this file to You under the Apache License, Version 2.0
+  ~ (the "License"); you may not use this file except in compliance with
+  ~ the License.  You may obtain a copy of the License at
+  ~
+  ~     http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.apache.streampark.console.core.mapper.ApplicationMapper">
     <resultMap id="BaseResultMap" type="org.apache.streampark.console.core.entity.Application">
@@ -57,7 +55,6 @@
         <result column="restart_count" jdbcType="INTEGER" property="restartCount"/>
         <result column="launch" jdbcType="INTEGER" property="launch"/>
         <result column="build" jdbcType="BOOLEAN" property="build"/>
-        <result column="flame_graph" jdbcType="BOOLEAN" property="flameGraph"/>
         <result column="resolve_order" jdbcType="INTEGER" property="resolveOrder"/>
         <result column="total_tm" jdbcType="INTEGER" property="totalTM"/>
         <result column="total_slot" jdbcType="INTEGER" property="totalSlot"/>
@@ -185,7 +182,7 @@
         where t.id = #{application.id}
     </select>
 
-    <update id="updateTracking" parameterType="org.apache.streampark.console.core.entity.Application">
+    <update id="persistMetrics" parameterType="org.apache.streampark.console.core.entity.Application">
         update t_flink_app
         <set>
             <if test="application.jobId != null and application.jobId != ''">
@@ -193,9 +190,6 @@
             </if>
             <if test="application.tracking != null">
                 tracking=#{application.tracking},
-            </if>
-            <if test="application.state != null">
-                state=#{application.state},
             </if>
             <if test="application.launch != null">
                 launch=#{application.launch},
@@ -212,24 +206,37 @@
             <if test="application.duration != null">
                 duration=#{application.duration},
             </if>
-            <if test="application.totalTM != null">
-                total_tm=#{application.totalTM},
-            </if>
-            <if test="application.totalSlot != null">
-                total_slot=#{application.totalSlot},
-            </if>
-            <if test="application.totalTask != null">
-                total_task=#{application.totalTask},
-            </if>
-            <if test="application.availableSlot != null">
-                available_slot=#{application.availableSlot},
-            </if>
-            <if test="application.jmMemory != null">
-                jm_memory=#{application.jmMemory},
-            </if>
-            <if test="application.tmMemory != null">
-                tm_memory=#{application.tmMemory}
-            </if>
+            <choose>
+                <when test="@org.apache.streampark.console.core.enums.FlinkAppState@isEndState(application.state)">
+                    total_tm=null,
+                    total_slot=null,
+                    total_task=null,
+                    available_slot=null,
+                    jm_memory=null,
+                    tm_memory=null,
+                </when>
+                <otherwise>
+                    <if test="application.totalTM != null">
+                        total_tm=#{application.totalTM},
+                    </if>
+                    <if test="application.totalSlot != null">
+                        total_slot=#{application.totalSlot},
+                    </if>
+                    <if test="application.totalTask != null">
+                        total_task=#{application.totalTask},
+                    </if>
+                    <if test="application.availableSlot != null">
+                        available_slot=#{application.availableSlot},
+                    </if>
+                    <if test="application.jmMemory != null">
+                        jm_memory=#{application.jmMemory},
+                    </if>
+                    <if test="application.tmMemory != null">
+                        tm_memory=#{application.tmMemory},
+                    </if>
+                </otherwise>
+            </choose>
+            state=#{application.state}
         </set>
         where id=#{application.id}
     </update>
@@ -259,7 +266,7 @@
                 app_id=#{application.appId},
             </if>
             end_time=null,
-            `state`=14
+            state=14
         </set>
         where id=#{application.id}
     </update>

@@ -17,7 +17,7 @@
 <template>
   <div class="enter-x mb-50px text-light-50">
     <div class="text-center enter-x">
-      <img class="logo w-160px mx-auto my-20px" src="/@/assets/images/logo.svg" />
+      <img class="logo w-160px mx-auto my-20px" src="/@/assets/images/logo.png" />
     </div>
   </div>
   <Form
@@ -89,7 +89,7 @@
     LoginTypeEnum,
   } from './useLogin';
   import { useDesign } from '/@/hooks/web/useDesign';
-  import { loginApi, loginLadpApi } from '/@/api/system/user';
+  import { loginApi, loginLdapApi } from '/@/api/system/user';
   import { APP_TEAMID_KEY_ } from '/@/enums/cacheEnum';
   import TeamModal from './teamModal.vue';
   import { fetchUserTeam } from '/@/api/system/member';
@@ -140,6 +140,7 @@
       console.error(error);
     }
   }
+
   async function handleLoginRequest(loginFormValue: LoginForm): Promise<Result<LoginResultModel>> {
     // local login
     if (loginType.value == LoginTypeEnum.LOCAL) {
@@ -149,7 +150,7 @@
       );
       return data;
     }
-    const { data } = await loginLadpApi(
+    const { data } = await loginLdapApi(
       { password: loginFormValue.password, username: loginFormValue.account },
       'none',
     );
@@ -160,8 +161,7 @@
       loading.value = true;
       try {
         const { code, data } = await handleLoginRequest(loginFormValue);
-
-        if (code != null && code != undefined) {
+        if (code != null) {
           if (code == 0 || code == 1) {
             const message =
               'SignIn failed,' +

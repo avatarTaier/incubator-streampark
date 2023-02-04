@@ -17,49 +17,49 @@
 
 package org.apache.streampark.flink.kubernetes.watcher
 
-import com.google.common.base.Charsets
-import com.google.common.io.Files
-import org.apache.commons.collections.CollectionUtils
-import org.apache.flink.core.fs.Path
-import org.apache.flink.runtime.history.FsJobArchivist
-import org.apache.streampark.common.util.Logger
-import org.apache.streampark.flink.kubernetes.enums.FlinkJobState
-import org.apache.streampark.flink.kubernetes.enums.FlinkK8sExecuteMode.{APPLICATION, SESSION}
-import org.apache.streampark.flink.kubernetes.event.FlinkJobStatusChangeEvent
-import org.apache.streampark.flink.kubernetes.model._
-import org.apache.streampark.flink.kubernetes.{ChangeEventBus, FlinkTrackController, IngressController, JobStatusWatcherConfig, KubernetesRetriever}
-import org.apache.streampark.flink.kubernetes.helper.KubernetesDeploymentHelper
-import org.apache.hc.client5.http.fluent.Request
-import org.apache.hc.core5.util.Timeout
-import org.apache.streampark.common.conf.Workspace
-import org.json4s.{DefaultFormats, JNothing, JNull}
-import org.json4s.JsonAST.JArray
-import org.json4s.jackson.JsonMethods.parse
-
 import java.io.File
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.{Executors, ScheduledFuture, TimeUnit}
 import javax.annotation.Nonnull
 import javax.annotation.concurrent.ThreadSafe
-import scala.concurrent.duration.DurationLong
+
+import scala.collection.JavaConversions._
 import scala.concurrent.{Await, ExecutionContext, ExecutionContextExecutorService, Future}
+import scala.concurrent.duration.DurationLong
 import scala.language.{implicitConversions, postfixOps}
 import scala.util.{Failure, Success, Try}
-import scala.collection.JavaConversions._
+
+import com.google.common.base.Charsets
+import com.google.common.io.Files
+import org.apache.flink.core.fs.Path
+import org.apache.flink.runtime.history.FsJobArchivist
+import org.apache.hc.client5.http.fluent.Request
+import org.apache.hc.core5.util.Timeout
+import org.json4s.{DefaultFormats, JNothing, JNull}
+import org.json4s.JsonAST.JArray
+import org.json4s.jackson.JsonMethods.parse
+
+import org.apache.streampark.common.conf.Workspace
+import org.apache.streampark.common.util.Logger
+import org.apache.streampark.flink.kubernetes.{ChangeEventBus, FlinkK8sWatchController, IngressController, JobStatusWatcherConfig, KubernetesRetriever}
+import org.apache.streampark.flink.kubernetes.enums.FlinkJobState
+import org.apache.streampark.flink.kubernetes.enums.FlinkK8sExecuteMode.{APPLICATION, SESSION}
+import org.apache.streampark.flink.kubernetes.event.FlinkJobStatusChangeEvent
+import org.apache.streampark.flink.kubernetes.helper.KubernetesDeploymentHelper
+import org.apache.streampark.flink.kubernetes.model._
 
 /**
  * Watcher for continuously monitor flink job status on kubernetes-mode,
  * the traced flink identifiers from FlinkTrackCachePool.trackIds, the traced
  * result of flink jobs status would written to FlinkTrackCachePool.jobStatuses.
- *
  */
 @ThreadSafe
-class FlinkJobStatusWatcher(conf: JobStatusWatcherConfig = JobStatusWatcherConfig.defaultConf)
-                           (implicit val trackController: FlinkTrackController,
-                            implicit val eventBus: ChangeEventBus) extends Logger with FlinkWatcher {
+class FlinkJobStatusWatcher(conf: JobStatusWatcherConfig = JobStatusWatcherConfig.defaultConf)(
+  implicit val watchController: FlinkK8sWatchController,
+  implicit val eventBus: ChangeEventBus) extends Logger with FlinkWatcher {
 
   private val trackTaskExecPool = Executors.newWorkStealingPool()
-  private implicit val trackTaskExecutor: ExecutionContextExecutorService = ExecutionContext.fromExecutorService(trackTaskExecPool)
+  implicit private val trackTaskExecutor: ExecutionContextExecutorService = ExecutionContext.fromExecutorService(trackTaskExecPool)
 
   private val timerExec = Executors.newSingleThreadScheduledExecutor()
   private var timerSchedule: ScheduledFuture[_] = _
@@ -95,13 +95,13 @@ class FlinkJobStatusWatcher(conf: JobStatusWatcherConfig = JobStatusWatcherConfi
    */
   override def doWatch(): Unit = {
     this.synchronized {
-      logInfo("[FlinkJobStatusWatcher]: Status monitoring process begins - " + Thread.currentThread().getName)
+      logDebug("[FlinkJobStatusWatcher]: Status monitoring process begins - " + Thread.currentThread().getName)
       // get all legal tracking ids
-      val trackIds = Try(trackController.collectAllTrackIds()).filter(_.nonEmpty).getOrElse(return)
+      val trackIds = Try(watchController.getAllWatchingIds()).filter(_.nonEmpty).getOrElse(return
+      )
 
       // retrieve flink job status in thread pool
       val tracksFuture: Set[Future[Option[JobStatusCV]]] = trackIds.map { id =>
-
         val future = Future {
           id.executeMode match {
             case SESSION => touchSessionJob(id)
@@ -112,19 +112,19 @@ class FlinkJobStatusWatcher(conf: JobStatusWatcherConfig = JobStatusWatcherConfi
         future onComplete (_.getOrElse(None) match {
           case Some(jobState) =>
             val trackId = id.copy(jobId = jobState.jobId)
-            val latest: JobStatusCV = trackController.jobStatuses.get(trackId)
+            val latest: JobStatusCV = watchController.jobStatuses.get(trackId)
             if (latest == null || latest.jobState != jobState.jobState || latest.jobId != jobState.jobId) {
               // put job status to cache
-              trackController.jobStatuses.put(trackId, jobState)
+              watchController.jobStatuses.put(trackId, jobState)
               // set jobId to trackIds
-              trackController.trackIds.update(trackId)
+              watchController.trackIds.update(trackId)
               eventBus.postSync(FlinkJobStatusChangeEvent(trackId, jobState))
             }
             if (FlinkJobState.isEndState(jobState.jobState)) {
               // remove trackId from cache of job that needs to be untracked
-              trackController.unTracking(trackId)
+              watchController.unWatching(trackId)
               if (trackId.executeMode == APPLICATION) {
-                trackController.endpoints.invalidate(trackId.toClusterKey)
+                watchController.endpoints.invalidate(trackId.toClusterKey)
               }
             }
           case _ =>
@@ -135,11 +135,11 @@ class FlinkJobStatusWatcher(conf: JobStatusWatcherConfig = JobStatusWatcherConfi
       // blocking until all future are completed or timeout is reached
       Try(Await.ready(Future.sequence(tracksFuture), conf.requestTimeoutSec seconds))
         .failed.map { _ =>
-        logInfo(s"[FlinkJobStatusWatcher] tracking flink job status on kubernetes mode timeout," +
+        logWarn(s"[FlinkJobStatusWatcher] tracking flink job status on kubernetes mode timeout," +
           s" limitSeconds=${conf.requestTimeoutSec}," +
           s" trackIds=${trackIds.mkString(",")}")
       }
-      logInfo("[FlinkJobStatusWatcher]: End of status monitoring process - " + Thread.currentThread().getName)
+      logDebug("[FlinkJobStatusWatcher]: End of status monitoring process - " + Thread.currentThread().getName)
     }
   }
 
@@ -161,7 +161,7 @@ class FlinkJobStatusWatcher(conf: JobStatusWatcherConfig = JobStatusWatcherConfi
     val rsMap = touchSessionAllJob(clusterId, namespace, appId).toMap
     val id = TrackId.onSession(namespace, clusterId, appId, jobId)
     val jobState = rsMap.get(id).filter(_.jobState != FlinkJobState.SILENT).getOrElse {
-      val preCache = trackController.jobStatuses.get(id)
+      val preCache = watchController.jobStatuses.get(id)
       val state = inferSilentOrLostFromPreCache(preCache)
       val nonFirstSilent = state == FlinkJobState.SILENT && preCache != null && preCache.jobState == FlinkJobState.SILENT
       if (nonFirstSilent) {
@@ -221,12 +221,12 @@ class FlinkJobStatusWatcher(conf: JobStatusWatcherConfig = JobStatusWatcherConfi
   private def listJobsDetails(clusterKey: ClusterKey): Option[JobDetails] = {
     // get flink rest api
     Try {
-      val clusterRestUrl = trackController.getClusterRestUrl(clusterKey).filter(_.nonEmpty).getOrElse(return None)
+      val clusterRestUrl = watchController.getClusterRestUrl(clusterKey).filter(_.nonEmpty).getOrElse(return None)
       // list flink jobs from rest api
       callJobsOverviewsApi(clusterRestUrl)
     }.getOrElse {
       logger.warn("Failed to visit remote flink jobs on kubernetes-native-mode cluster, and the retry access logic is performed.")
-      val clusterRestUrl = trackController.refreshClusterRestUrl(clusterKey).getOrElse(return None)
+      val clusterRestUrl = watchController.refreshClusterRestUrl(clusterKey).getOrElse(return None)
       Try(callJobsOverviewsApi(clusterRestUrl)) match {
         case Success(s) =>
           logger.info("The retry is successful.")
@@ -246,8 +246,7 @@ class FlinkJobStatusWatcher(conf: JobStatusWatcherConfig = JobStatusWatcherConfi
       Request.get(s"$restUrl/jobs/overview")
         .connectTimeout(Timeout.ofSeconds(KubernetesRetriever.FLINK_REST_AWAIT_TIMEOUT_SEC))
         .responseTimeout(Timeout.ofSeconds(KubernetesRetriever.FLINK_CLIENT_TIMEOUT_SEC))
-        .execute.returnContent().asString(StandardCharsets.UTF_8)
-    )
+        .execute.returnContent().asString(StandardCharsets.UTF_8))
     jobDetails
   }
 
@@ -256,14 +255,14 @@ class FlinkJobStatusWatcher(conf: JobStatusWatcherConfig = JobStatusWatcherConfi
    * This method is only used for application-mode job inference in
    * case of a failed JM rest request.
    */
-  private def inferApplicationFlinkJobStateFromK8sEvent(@Nonnull trackId: TrackId)
-                                                       (implicit pollEmitTime: Long): Option[JobStatusCV] = {
+  private def inferApplicationFlinkJobStateFromK8sEvent(@Nonnull trackId: TrackId)(implicit pollEmitTime: Long): Option[JobStatusCV] = {
 
     // infer from k8s deployment and event
-    val latest: JobStatusCV = trackController.jobStatuses.get(trackId)
-    logger.info(s"Query the local cache result:${trackController.canceling.has(trackId).toString},trackId ${trackId.toString}.")
+    val latest: JobStatusCV = watchController.jobStatuses.get(trackId)
+    logger.info(s"Query the local cache result:${watchController.canceling.has(trackId).toString},trackId ${trackId.toString}.")
     val jobState = {
-      if (trackController.canceling.has(trackId)) FlinkJobState.CANCELED else {
+      if (watchController.canceling.has(trackId)) FlinkJobState.CANCELED
+      else {
         // whether deployment exists on kubernetes cluster
         val isDeployExists = KubernetesRetriever.isDeploymentExists(trackId.clusterId, trackId.namespace)
         val deployStateOfTheError = KubernetesDeploymentHelper.getDeploymentStatusChanges(trackId.namespace, trackId.clusterId)
@@ -296,8 +295,7 @@ class FlinkJobStatusWatcher(conf: JobStatusWatcherConfig = JobStatusWatcherConfi
       jobState = jobState,
       jobId = trackId.jobId,
       pollEmitTime = pollEmitTime,
-      pollAckTime = System.currentTimeMillis
-    )
+      pollAckTime = System.currentTimeMillis)
 
     if (jobState == FlinkJobState.SILENT && latest != null && latest.jobState == FlinkJobState.SILENT) {
       Some(jobStatusCV.copy(pollEmitTime = latest.pollEmitTime, pollAckTime = latest.pollAckTime))
@@ -308,8 +306,9 @@ class FlinkJobStatusWatcher(conf: JobStatusWatcherConfig = JobStatusWatcherConfi
 
   private[this] def inferSilentOrLostFromPreCache(preCache: JobStatusCV) = preCache match {
     case preCache if preCache == null => FlinkJobState.SILENT
-    case preCache if preCache.jobState == FlinkJobState.SILENT &&
-      System.currentTimeMillis() - preCache.pollAckTime >= conf.silentStateJobKeepTrackingSec * 1000 => FlinkJobState.LOST
+    case preCache
+      if preCache.jobState == FlinkJobState.SILENT &&
+        System.currentTimeMillis() - preCache.pollAckTime >= conf.silentStateJobKeepTrackingSec * 1000 => FlinkJobState.LOST
     case _ => FlinkJobState.SILENT
   }
 
@@ -342,15 +341,15 @@ object FlinkJobStatusWatcher {
 
 private[kubernetes] case class JobDetails(jobs: Array[JobDetail] = Array())
 
-
-private[kubernetes] case class JobDetail(jid: String,
-                                         name: String,
-                                         state: String,
-                                         startTime: Long,
-                                         endTime: Long,
-                                         duration: Long,
-                                         lastModification: Long,
-                                         tasks: JobTask) {
+private[kubernetes] case class JobDetail(
+    jid: String,
+    name: String,
+    state: String,
+    startTime: Long,
+    endTime: Long,
+    duration: Long,
+    lastModification: Long,
+    tasks: JobTask) {
   def toJobStatusCV(pollEmitTime: Long, pollAckTime: Long): JobStatusCV = {
     JobStatusCV(
       jobState = FlinkJobState.of(state),
@@ -365,18 +364,18 @@ private[kubernetes] case class JobDetail(jid: String,
   }
 }
 
-private[kubernetes] case class JobTask(total: Int,
-                                       created: Int,
-                                       scheduled: Int,
-                                       deploying: Int,
-                                       running: Int,
-                                       finished: Int,
-                                       canceling: Int,
-                                       canceled: Int,
-                                       failed: Int,
-                                       reconciling: Int,
-                                       initializing: Int)
-
+private[kubernetes] case class JobTask(
+    total: Int,
+    created: Int,
+    scheduled: Int,
+    deploying: Int,
+    running: Int,
+    finished: Int,
+    canceling: Int,
+    canceled: Int,
+    failed: Int,
+    reconciling: Int,
+    initializing: Int)
 
 private[kubernetes] object JobDetails {
 
@@ -411,9 +410,7 @@ private[kubernetes] object JobDetails {
                   (task \ "canceled").extractOpt[Int].getOrElse(0),
                   (task \ "failed").extractOpt[Int].getOrElse(0),
                   (task \ "reconciling").extractOpt[Int].getOrElse(0),
-                  (task \ "initializing").extractOpt[Int].getOrElse(0)
-                )
-              )
+                  (task \ "initializing").extractOpt[Int].getOrElse(0)))
             }).toArray
             Some(JobDetails(details))
           case _ => None
@@ -435,41 +432,41 @@ private[kubernetes] object FlinkHistoryArchives {
   def getJobStateFromArchiveFile(jobId: String): String = Try {
     require(jobId != null, "[StreamPark] getJobStateFromArchiveFile: JobId cannot be null.")
     val archivePath = new Path(Workspace.ARCHIVES_FILE_PATH, jobId)
-    val archivedJson = FsJobArchivist.getArchivedJsons(archivePath)
-    var state: String = FAILED_STATE
-    if (CollectionUtils.isNotEmpty(archivedJson)) {
-      archivedJson.foreach { a =>
-        if (a.getPath == s"/jobs/$jobId/exceptions") {
-          Try(parse(a.getJson)) match {
-            case Success(ok) =>
-              val log = (ok \ "root-exception").extractOpt[String].orNull
-              if (log != null) {
-                val path = KubernetesDeploymentHelper.getJobErrorLog(jobId)
-                val file = new File(path)
-                Files.asCharSink(file, Charsets.UTF_8).write(log)
-              }
-            case _ =>
-          }
-        } else if (a.getPath == "/jobs/overview") {
-          Try(parse(a.getJson)) match {
-            case Success(ok) =>
-              ok \ "jobs" match {
-                case JNothing | JNull =>
-                case JArray(arr) =>
-                  arr.foreach(x => {
-                    val jid = (x \ "jid").extractOpt[String].orNull
-                    if (jid == jobId) {
-                      state = (x \ "state").extractOpt[String].orNull
-                    }
-                  })
-                case _ =>
-              }
-            case Failure(_) =>
+    FsJobArchivist.getArchivedJsons(archivePath) match {
+      case r if r.isEmpty => FAILED_STATE
+      case r =>
+        r.foreach { a =>
+          if (a.getPath == s"/jobs/$jobId/exceptions") {
+            Try(parse(a.getJson)) match {
+              case Success(ok) =>
+                val log = (ok \ "root-exception").extractOpt[String].orNull
+                if (log != null) {
+                  val path = KubernetesDeploymentHelper.getJobErrorLog(jobId)
+                  val file = new File(path)
+                  Files.asCharSink(file, Charsets.UTF_8).write(log)
+                }
+              case _ =>
+            }
+          } else if (a.getPath == "/jobs/overview") {
+            Try(parse(a.getJson)) match {
+              case Success(ok) =>
+                ok \ "jobs" match {
+                  case JNothing | JNull =>
+                  case JArray(arr) =>
+                    arr.foreach(x => {
+                      val jid = (x \ "jid").extractOpt[String].orNull
+                      if (jid == jobId) {
+                        return (x \ "state").extractOpt[String].orNull
+                      }
+                    })
+                  case _ =>
+                }
+              case Failure(_) =>
+            }
           }
         }
-      }
+        FAILED_STATE
     }
-    state
   }.getOrElse(FAILED_STATE)
 
 }

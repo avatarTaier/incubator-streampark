@@ -39,7 +39,7 @@ import { handleConfTemplate } from '/@/api/flink/config';
 import { decodeByBase64 } from '/@/utils/cipher';
 import { useMessage } from '/@/hooks/web/useMessage';
 import { SelectValue } from 'ant-design-vue/lib/select';
-import { CandidateTypeEnum } from '/@/enums/flinkEnum';
+import { CandidateTypeEnum, FailoverStrategyEnum } from '/@/enums/flinkEnum';
 import { useI18n } from '/@/hooks/web/useI18n';
 
 const { t } = useI18n();
@@ -91,7 +91,7 @@ export const renderInputDropdown = (
 export function handleCheckCheckpoint(values: Recordable) {
   const { cpMaxFailureInterval, cpFailureRateInterval, cpFailureAction } = values.checkPointFailure;
   if (cpMaxFailureInterval != null && cpFailureRateInterval != null && cpFailureAction != null) {
-    if (cpFailureAction === 1) {
+    if (cpFailureAction === FailoverStrategyEnum.ALERT) {
       if (values.alertId == null) {
         // this.form.setFields({
         //   alertEmail: {
@@ -245,16 +245,15 @@ export const renderDynamicProperties = ({ model, field }: RenderCallbackParams) 
       <p class="conf-desc mt-10px">
         <span class="note-info">
           <Tag color="#2db7f5" class="tag-note">
-            Note
+            {t('flink.app.noteInfo.note')}
           </Tag>
-          It works the same as <span class="note-elem">-D$property=$value</span> in CLI mode, Allows
-          specifying multiple generic configuration options. The available options can be found
+          {t('flink.app.noteInfo.dynamicProperties')}
           <a
             href="https://ci.apache.org/projects/flink/flink-docs-stable/ops/config.html"
             target="_blank"
             class="pl-5px"
           >
-            here
+            Flink {t('flink.app.noteInfo.officialDoc')}
           </a>
         </span>
       </p>

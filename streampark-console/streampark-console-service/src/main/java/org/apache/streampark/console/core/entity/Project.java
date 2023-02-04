@@ -20,12 +20,16 @@ package org.apache.streampark.console.core.entity;
 import org.apache.streampark.common.conf.CommonConfig;
 import org.apache.streampark.common.conf.Workspace;
 import org.apache.streampark.common.util.CommandUtils;
+import org.apache.streampark.console.base.exception.ApiDetailException;
 import org.apache.streampark.console.base.util.CommonUtils;
+import org.apache.streampark.console.base.util.GitUtils;
 import org.apache.streampark.console.base.util.WebUtils;
 import org.apache.streampark.console.core.enums.GitAuthorizedError;
 import org.apache.streampark.console.core.service.SettingService;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -33,17 +37,11 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.lib.Ref;
-import org.eclipse.jgit.transport.CredentialsProvider;
-import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
+import org.eclipse.jgit.lib.Constants;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
@@ -51,235 +49,195 @@ import java.util.List;
 @Data
 @TableName("t_flink_project")
 public class Project implements Serializable {
-    @TableId(type = IdType.AUTO)
-    private Long id;
+  @TableId(type = IdType.AUTO)
+  private Long id;
 
-    private Long teamId;
+  private Long teamId;
 
-    private String name;
+  private String name;
 
-    private String url;
+  private String url;
 
-    /**
-     * git branch
-     */
-    private String branches;
+  /** git branch */
+  private String branches;
 
-    private Date lastBuild;
+  private Date lastBuild;
 
-    private String userName;
+  private Integer gitCredential;
 
-    private String password;
-    /**
-     * 1:git 2:svn
-     */
-    private Integer repository;
+  @TableField(updateStrategy = FieldStrategy.IGNORED)
+  private String userName;
 
-    private String pom;
+  @TableField(updateStrategy = FieldStrategy.IGNORED)
+  private String password;
 
-    private String buildArgs;
+  @TableField(updateStrategy = FieldStrategy.IGNORED)
+  private String prvkeyPath;
 
+  /** 1:git 2:svn */
+  private Integer repository;
 
-    private String description;
-    /**
-     * Build status: -2: Changed, need to rebuild -1: Not built 0: Building 1: Build successful 2: Build failed
-     */
-    private Integer buildState;
+  private String pom;
 
-    /**
-     * 1) flink
-     * 2) spark
-     */
-    private Integer type;
+  private String buildArgs;
 
-    private Date createTime;
+  private String description;
+  /**
+   * Build status: -2: Changed, need to rebuild -1: Not built 0: Building 1: Build successful 2:
+   * Build failed
+   */
+  private Integer buildState;
 
-    private Date modifyTime;
+  /** 1) flink 2) spark */
+  private Integer type;
 
-    private transient String module;
+  private Date createTime;
 
-    private transient String dateFrom;
+  private Date modifyTime;
 
-    private transient String dateTo;
+  private transient String module;
 
-    /**
-     * project source
-     */
-    private transient String appSource;
+  private transient String dateFrom;
 
-    /**
-     * get project source
-     */
-    @JsonIgnore
-    public File getAppSource() {
-        if (appSource == null) {
-            appSource = Workspace.PROJECT_LOCAL_PATH();
-        }
-        File sourcePath = new File(appSource);
-        if (!sourcePath.exists()) {
-            sourcePath.mkdirs();
-        }
-        if (sourcePath.isFile()) {
-            throw new IllegalArgumentException("[StreamPark] sourcePath must be directory");
-        }
-        String branches = this.getBranches() == null ? "main" : this.getBranches();
-        String rootName = url.replaceAll(".*/|\\.git|\\.svn", "");
-        String fullName = rootName.concat("-").concat(branches);
-        String path = String.format("%s/%s/%s", sourcePath.getAbsolutePath(), getName(), fullName);
-        return new File(path);
+  private transient String dateTo;
+
+  /** project source */
+  private transient String appSource;
+
+  /** get project source */
+  @JsonIgnore
+  public File getAppSource() {
+    if (appSource == null) {
+      appSource = Workspace.PROJECT_LOCAL_PATH();
+    }
+    File sourcePath = new File(appSource);
+    if (!sourcePath.exists()) {
+      sourcePath.mkdirs();
+    }
+    if (sourcePath.isFile()) {
+      throw new IllegalArgumentException("[StreamPark] sourcePath must be directory");
+    }
+    String branches = this.getBranches() == null ? "main" : this.getBranches();
+    String rootName = url.replaceAll(".*/|\\.git|\\.svn", "");
+    String fullName = rootName.concat("-").concat(branches);
+    String path = String.format("%s/%s/%s", sourcePath.getAbsolutePath(), getName(), fullName);
+    return new File(path);
+  }
+
+  @JsonIgnore
+  public File getDistHome() {
+    return new File(Workspace.APP_LOCAL_DIST(), id.toString());
+  }
+
+  @JsonIgnore
+  public File getGitRepository() {
+    File home = getAppSource();
+    return new File(home, Constants.DOT_GIT);
+  }
+
+  public void delete() throws IOException {
+    FileUtils.deleteDirectory(getAppSource());
+    FileUtils.deleteDirectory(getDistHome());
+  }
+
+  @JsonIgnore
+  public List<String> getAllBranches() {
+    try {
+      return GitUtils.getBranchList(this);
+    } catch (Exception e) {
+      throw new ApiDetailException(e);
+    }
+  }
+
+  public GitAuthorizedError gitCheck() {
+    try {
+      GitUtils.getBranchList(this);
+      return GitAuthorizedError.SUCCESS;
+    } catch (Exception e) {
+      String err = e.getMessage();
+      if (err.contains("not authorized")) {
+        return GitAuthorizedError.ERROR;
+      } else if (err.contains("Authentication is required")) {
+        return GitAuthorizedError.REQUIRED;
+      }
+      return GitAuthorizedError.UNKNOW;
+    }
+  }
+
+  @JsonIgnore
+  public boolean isCloned() {
+    File repository = getGitRepository();
+    return repository.exists();
+  }
+
+  /**
+   * If you check that the project already exists and has been cloned, delete it first, Mainly to
+   * solve: if the latest pulling code in the file deletion, etc., the local will not automatically
+   * delete, may cause unpredictable errors.
+   */
+  public void cleanCloned() throws IOException {
+    if (isCloned()) {
+      this.delete();
+    }
+  }
+
+  @JsonIgnore
+  public String getMavenArgs() {
+    String mvn = "mvn";
+    try {
+      if (CommonUtils.isWindows()) {
+        CommandUtils.execute("mvn.cmd --version");
+      } else {
+        CommandUtils.execute("mvn --version");
+      }
+    } catch (Exception e) {
+      if (CommonUtils.isWindows()) {
+        mvn = WebUtils.getAppHome().concat("/bin/mvnw.cmd");
+      } else {
+        mvn = WebUtils.getAppHome().concat("/bin/mvnw");
+      }
     }
 
-    @JsonIgnore
-    public File getDistHome() {
-        return new File(Workspace.APP_LOCAL_DIST(), id.toString());
+    StringBuffer cmdBuffer = new StringBuffer(mvn).append(" clean package -DskipTests ");
+
+    if (StringUtils.isNotEmpty(this.buildArgs)) {
+      cmdBuffer.append(this.buildArgs.trim());
     }
 
-    @JsonIgnore
-    public CredentialsProvider getCredentialsProvider() {
-        return new UsernamePasswordCredentialsProvider(this.userName, this.password);
+    Setting setting = SettingService.SETTINGS.get(CommonConfig.MAVEN_SETTINGS_PATH());
+    if (setting != null) {
+      cmdBuffer.append(" --settings ").append(setting.getSettingValue());
     }
 
-    @JsonIgnore
-    public File getGitRepository() {
-        File home = getAppSource();
-        return new File(home, ".git");
+    return cmdBuffer.toString();
+  }
+
+  @JsonIgnore
+  public String getMavenWorkHome() {
+    String buildHome = this.getAppSource().getAbsolutePath();
+    if (CommonUtils.notEmpty(this.getPom())) {
+      buildHome =
+          new File(buildHome.concat("/").concat(this.getPom())).getParentFile().getAbsolutePath();
     }
+    return buildHome;
+  }
 
-    public void delete() throws IOException {
-        FileUtils.deleteDirectory(getAppSource());
-        FileUtils.deleteDirectory(getDistHome());
-    }
+  @JsonIgnore
+  public String getLog4BuildStart() {
+    return String.format(
+        "%sproject : %s\nbranches: %s\ncommand : %s\n\n",
+        getLogHeader("maven install"), getName(), getBranches(), getMavenArgs());
+  }
 
-    @JsonIgnore
-    public List<String> getAllBranches() {
-        try {
-            Collection<Ref> refList;
-            if (CommonUtils.notEmpty(userName, password)) {
-                UsernamePasswordCredentialsProvider pro = new UsernamePasswordCredentialsProvider(userName, password);
-                refList = Git.lsRemoteRepository().setRemote(url).setCredentialsProvider(pro).call();
-            } else {
-                refList = Git.lsRemoteRepository().setRemote(url).call();
-            }
-            List<String> branchList = new ArrayList<>(4);
-            for (Ref ref : refList) {
-                String refName = ref.getName();
-                if (refName.startsWith("refs/heads/")) {
-                    String branchName = refName.replace("refs/heads/", "");
-                    branchList.add(branchName);
-                }
-            }
-            return branchList;
-        } catch (Exception e) {
-            log.error(e.getMessage(), e);
-        }
-        return Collections.emptyList();
-    }
+  @JsonIgnore
+  public String getLog4CloneStart() {
+    return String.format(
+        "%sproject  : %s\nbranches : %s\nworkspace: %s\n\n",
+        getLogHeader("git clone"), getName(), getBranches(), getAppSource());
+  }
 
-    public GitAuthorizedError gitCheck() {
-        try {
-            if (CommonUtils.notEmpty(userName, password)) {
-                UsernamePasswordCredentialsProvider credentialsProvider = new UsernamePasswordCredentialsProvider(userName, password);
-                Git.lsRemoteRepository().setRemote(url).setCredentialsProvider(credentialsProvider).call();
-            } else {
-                Git.lsRemoteRepository().setRemote(url).call();
-            }
-            return GitAuthorizedError.SUCCESS;
-        } catch (Exception e) {
-            String err = e.getMessage();
-            if (err.contains("not authorized")) {
-                return GitAuthorizedError.ERROR;
-            } else if (err.contains("Authentication is required")) {
-                return GitAuthorizedError.REQUIRED;
-            }
-            return GitAuthorizedError.UNKNOW;
-        }
-    }
-
-    @JsonIgnore
-    public boolean isCloned() {
-        File repository = getGitRepository();
-        return repository.exists();
-    }
-
-    /**
-     * If you check that the project already exists and has been cloned, delete it first,
-     * Mainly to solve: if the latest pulling code in the file deletion, etc., the local will not automatically delete,
-     * may cause unpredictable errors.
-     */
-    public void cleanCloned() throws IOException {
-        if (isCloned()) {
-            this.delete();
-        }
-    }
-
-    @JsonIgnore
-    public String getMavenArgs() {
-        String mvn = "mvn";
-        try {
-            if (CommonUtils.isWindows()) {
-                CommandUtils.execute("mvn.cmd --version");
-            } else {
-                CommandUtils.execute("mvn --version");
-            }
-        } catch (Exception e) {
-            if (CommonUtils.isWindows()) {
-                mvn = WebUtils.getAppHome().concat("/bin/mvnw.cmd");
-            } else {
-                mvn = WebUtils.getAppHome().concat("/bin/mvnw");
-            }
-        }
-
-        StringBuffer cmdBuffer = new StringBuffer(mvn).append(" clean package -DskipTests ");
-
-        if (StringUtils.isNotEmpty(this.buildArgs)) {
-            cmdBuffer.append(this.buildArgs.trim());
-        }
-
-        Setting setting = SettingService.SETTINGS.get(CommonConfig.MAVEN_SETTINGS_PATH());
-        if (setting != null) {
-            cmdBuffer.append(" --settings ").append(setting.getSettingValue());
-        }
-
-        return cmdBuffer.toString();
-    }
-
-    @JsonIgnore
-    public String getMavenWorkHome() {
-        String buildHome = this.getAppSource().getAbsolutePath();
-        if (CommonUtils.notEmpty(this.getPom())) {
-            buildHome = new File(buildHome.concat("/")
-                .concat(this.getPom()))
-                .getParentFile()
-                .getAbsolutePath();
-        }
-        return buildHome;
-    }
-
-    @JsonIgnore
-    public String getLog4BuildStart() {
-        return String.format(
-            "%sproject : %s\nbranches: %s\ncommand : %s\n\n",
-            getLogHeader("maven install"),
-            getName(),
-            getBranches(),
-            getMavenArgs()
-        );
-    }
-
-    @JsonIgnore
-    public String getLog4CloneStart() {
-        return String.format(
-            "%sproject  : %s\nbranches : %s\nworkspace: %s\n\n",
-            getLogHeader("git clone"),
-            getName(),
-            getBranches(),
-            getAppSource()
-        );
-    }
-
-    @JsonIgnore
-    private String getLogHeader(String header) {
-        return "---------------------------------[ " + header + " ]---------------------------------\n";
-    }
-
+  @JsonIgnore
+  private String getLogHeader(String header) {
+    return "---------------------------------[ " + header + " ]---------------------------------\n";
+  }
 }

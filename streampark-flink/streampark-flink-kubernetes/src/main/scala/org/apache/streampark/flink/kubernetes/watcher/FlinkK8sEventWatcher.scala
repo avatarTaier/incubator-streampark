@@ -17,24 +17,25 @@
 
 package org.apache.streampark.flink.kubernetes.watcher
 
-import org.apache.streampark.common.util.Logger
-import org.apache.streampark.flink.kubernetes.model.{K8sDeploymentEventCV, K8sEventKey}
-import org.apache.streampark.flink.kubernetes.{FlinkTrackController, KubernetesRetriever}
+import javax.annotation.concurrent.ThreadSafe
+
+import scala.util.Try
+
 import io.fabric8.kubernetes.api.model.apps.Deployment
 import io.fabric8.kubernetes.client.{KubernetesClient, Watcher}
-import org.apache.flink.kubernetes.kubeclient.resources.{CompKubernetesDeployment, CompatibleKubernetesWatcher}
+import org.apache.flink.kubernetes.kubeclient.resources.{CompatibleKubernetesWatcher, CompKubernetesDeployment}
 
-import javax.annotation.concurrent.ThreadSafe
-import scala.util.Try
+import org.apache.streampark.common.util.Logger
+import org.apache.streampark.flink.kubernetes.{FlinkK8sWatchController, KubernetesRetriever}
+import org.apache.streampark.flink.kubernetes.model.{K8sDeploymentEventCV, K8sEventKey}
 
 /**
  * K8s Event Watcher for Flink Native-K8s Mode.
  * Currently only flink-native-application mode events would be tracked.
  * The results of traced events would written into cachePool.
- *
  */
 @ThreadSafe
-class FlinkK8sEventWatcher(implicit trackController: FlinkTrackController) extends Logger with FlinkWatcher {
+class FlinkK8sEventWatcher(implicit watchController: FlinkK8sWatchController) extends Logger with FlinkWatcher {
 
   private var k8sClient: KubernetesClient = _
 
@@ -80,10 +81,9 @@ class FlinkK8sEventWatcher(implicit trackController: FlinkTrackController) exten
     // if (!cachePool.isInTracking(TrackId.onApplication(namespace, clusterId)))
     //  return
     // just tracking every flink-k8s-native event :)
-    trackController.k8sDeploymentEvents.put(
+    watchController.k8sDeploymentEvents.put(
       K8sEventKey(namespace, clusterId),
-      K8sDeploymentEventCV(action, event, System.currentTimeMillis())
-    )
+      K8sDeploymentEventCV(action, event, System.currentTimeMillis()))
   }
 
 }

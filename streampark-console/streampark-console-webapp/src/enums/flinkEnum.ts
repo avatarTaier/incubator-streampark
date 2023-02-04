@@ -152,6 +152,17 @@ export enum JobTypeEnum {
   SQL = 2,
 }
 
+export enum ConfigTypeEnum {
+  /** yaml type */
+  YAML = 1,
+  /** properties type */
+  PROPERTIES = 2,
+  /** HOCON config type */
+  HOCON = 3,
+  /** unknown */
+  UNKNOWN = 0,
+}
+
 export enum CandidateTypeEnum {
   /** non candidate */
   NONE = 0,
@@ -200,4 +211,9 @@ export enum AlertTypeEnum {
   MESSAGE = 8,
   /** lark */
   LARK = 16,
+}
+
+export enum FailoverStrategyEnum {
+  ALERT = 1,
+  RESTART = 2,
 }
