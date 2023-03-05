@@ -42,6 +42,7 @@ drop table if exists "public"."t_access_token";
 drop table if exists "public"."t_flink_log";
 drop table if exists "public"."t_team";
 drop table if exists "public"."t_variable";
+drop table if exists "public"."t_external_link";
 
 -- ----------------------------
 -- drop sequence if exists
@@ -66,6 +67,7 @@ drop sequence if exists "public"."streampark_t_access_token_id_seq";
 drop sequence if exists "public"."streampark_t_flink_log_id_seq";
 drop sequence if exists "public"."streampark_t_team_id_seq";
 drop sequence if exists "public"."streampark_t_variable_id_seq";
+drop sequence if exists "public"."streampark_t_external_link_id_seq";
 
 -- ----------------------------
 -- drop trigger if exists
@@ -233,7 +235,7 @@ create table "public"."t_flink_app" (
   "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone),
   "modify_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone),
   "option_time" timestamp(6),
-  "launch" int2 default 1,
+  "release" int2 default 1,
   "build" boolean default true,
   "start_time" timestamp(6),
   "end_time" timestamp(6),
@@ -453,7 +455,7 @@ create table "public"."t_flink_savepoint" (
   "app_id" int8 not null,
   "chk_id" int8,
   "type" int2,
-  "path" varchar(255) collate "pg_catalog"."default",
+  "path" varchar(1024) collate "pg_catalog"."default",
   "latest" boolean not null default true,
   "trigger_time" timestamp(6),
   "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone)
@@ -740,6 +742,25 @@ create index "un_user_role_inx" on "public"."t_member" using btree (
   "user_id" "pg_catalog"."int8_ops" asc nulls last,
   "role_id" "pg_catalog"."int8_ops" asc nulls last
 );
+
+
+-- ----------------------------
+-- table structure for t_external_link
+-- ----------------------------
+create sequence "public"."streampark_t_external_link_id_seq"
+    increment 1 start 10000 cache 1 minvalue 10000 maxvalue 9223372036854775807;
+
+create table "public"."t_external_link" (
+  "id" int8 not null default nextval('streampark_t_external_link_id_seq'::regclass),
+  "badge_label" varchar(100) collate "pg_catalog"."default",
+  "badge_name" varchar(100) collate "pg_catalog"."default",
+  "badge_color" varchar(100) collate "pg_catalog"."default",
+  "link_url" varchar(1000) collate "pg_catalog"."default",
+  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone),
+  "modify_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone))
+;
+alter table "public"."t_external_link" add constraint "t_external_link_pkey" primary key ("id");
+
 
 -- -----------------------------------------
 -- trigger for table with modify_time field
