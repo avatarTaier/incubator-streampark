@@ -21,9 +21,6 @@ export default {
     modify: '修改用户',
     reset: '重置密码',
     resetTip: '你确定要重置密码吗?',
-    delete: '删除用户',
-    deleteTip: '你确定要删除用户吗',
-    deleteSuccess: '用户删除成功',
     resetSuccess: '重置密码成功，用户 [ {0} ] 新密码为 streampark666',
   },
   form: {
@@ -34,6 +31,7 @@ export default {
     exist: '抱歉，用户名已存在',
     nickName: '昵称',
     userType: '用户类型',
+    loginType: '登录类型',
     status: '状态',
     gender: '性别',
     lastLoginTime: '最近登录时间',
@@ -45,6 +43,8 @@ export default {
     create: '创建用户',
     edit: '编辑用户',
     view: '查看用户',
+    notice: '提示',
+    transferResource: '请将需要被禁用的用户资源转移到新的用户上',
   },
   roleInfo: '角色信息',
   modifyTime: '尚未修改',
@@ -53,4 +53,6 @@ export default {
   secret: '未知',
   locked: '锁定',
   effective: '有效',
+  resetSucceeded: '重置成功',
+  newPasswordTip: '新的密码为：',
 };

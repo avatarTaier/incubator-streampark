@@ -22,7 +22,6 @@
         <id column="id" jdbcType="INTEGER" property="id"/>
         <result column="team_id" jdbcType="BIGINT" property="teamId"/>
         <result column="name" jdbcType="VARCHAR" property="name"/>
-        <result column="git_credential" jdbcType="INTEGER" property="gitCredential"/>
         <result column="url" jdbcType="VARCHAR" property="url"/>
         <result column="repository" jdbcType="INTEGER" property="repository"/>
         <result column="branches" jdbcType="VARCHAR" property="branches"/>
@@ -40,13 +39,26 @@
     </resultMap>
 
     <select id="existsByTeamId" resultType="java.lang.Boolean" parameterType="java.lang.Long">
-        select count(1)
+        select
+            CASE
+                WHEN  count(1) > 0 THEN true ELSE false
+            END
         from t_flink_project
-        where team_id = #{teamId}
+            where team_id = #{teamId}
+            limit 1
+    </select>
+
+    <select id="existsByUserId" resultType="java.lang.Boolean" parameterType="java.lang.String">
+        select
+            CASE
+                WHEN  count(1) > 0 THEN true ELSE false
+                END
+        from t_flink_project
+        where user_id = #{userId}
         limit 1
     </select>
 
-    <select id="selectByTeamId" resultType="org.apache.streampark.console.core.entity.Project" parameterType="java.lang.Long">
+    <select id="selectProjectsByTeamId" resultType="org.apache.streampark.console.core.entity.Project" parameterType="java.lang.Long">
         select *
         from t_flink_project
         where team_id = #{teamId}
@@ -64,13 +76,13 @@
         where id = #{id}
     </update>
 
-    <select id="page" resultType="org.apache.streampark.console.core.entity.Project" parameterType="org.apache.streampark.console.core.entity.Project">
+    <select id="selectPage" resultType="org.apache.streampark.console.core.entity.Project" parameterType="org.apache.streampark.console.core.entity.Project">
         select *
         from t_flink_project t
         <where>
             t.team_id = #{project.teamId}
             <if test="project.name != null and project.name != ''">
-                and t.name like '%${project.name}%'
+                and t.name like concat('%', '${project.name}', '%')
             </if>
             <if test="project.buildState != null">
                 and t.build_state = #{project.buildState}

@@ -19,11 +19,13 @@ package org.apache.streampark.flink.packer.maven
 
 import java.util.{List => JavaList}
 
-import scala.collection.JavaConversions._
+import scala.collection.convert.ImplicitConversions._
 
 /**
- * @param mavenArts  collection of maven artifacts
- * @param extJarLibs collection of jar lib paths, which elements can be a directory or file path.
+ * @param mavenArts
+ *   collection of maven artifacts
+ * @param extJarLibs
+ *   collection of jar lib paths, which elements can be a directory or file path.
  */
 case class DependencyInfo(mavenArts: Set[Artifact] = Set(), extJarLibs: Set[String] = Set()) {
 
@@ -34,6 +36,14 @@ case class DependencyInfo(mavenArts: Set[Artifact] = Set(), extJarLibs: Set[Stri
   def merge(jarLibs: Set[String]): DependencyInfo =
     if (jarLibs != null) DependencyInfo(mavenArts, extJarLibs ++ jarLibs) else this.copy()
 
+  def merge(mvnPoms: JavaList[Artifact], jarLibs: JavaList[String]): DependencyInfo =
+    if (mvnPoms != null && jarLibs != null)
+      DependencyInfo(mavenArts ++ mvnPoms.toSet, extJarLibs ++ jarLibs.toSet)
+    else if (mvnPoms != null)
+      DependencyInfo(mavenArts ++ mvnPoms.toSet, extJarLibs)
+    else if (jarLibs != null)
+      DependencyInfo(mavenArts, extJarLibs ++ jarLibs.toSet)
+    else this.copy()
 }
 
 object DependencyInfo {

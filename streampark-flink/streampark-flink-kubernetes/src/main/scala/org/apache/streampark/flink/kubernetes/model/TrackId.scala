@@ -17,36 +17,35 @@
 
 package org.apache.streampark.flink.kubernetes.model
 
+import org.apache.streampark.common.Constant
+import org.apache.streampark.common.util.Utils
+import org.apache.streampark.flink.kubernetes.enums.FlinkK8sExecuteModeEnum
+
 import scala.util.Try
 
-import org.apache.streampark.common.util.Utils
-import org.apache.streampark.flink.kubernetes.enums.FlinkK8sExecuteMode
-
-/**
- * tracking identifier for flink on kubernetes
- */
-case class TrackId(executeMode: FlinkK8sExecuteMode.Value,
-                   namespace: String = "default",
-                   clusterId: String,
-                   appId: Long,
-                   jobId: String,
-                   groupId: String) {
+/** tracking identifier for flink on kubernetes */
+case class TrackId(
+    executeMode: FlinkK8sExecuteModeEnum.Value,
+    namespace: String = Constant.DEFAULT,
+    clusterId: String,
+    appId: Long,
+    jobId: String,
+    groupId: String) {
 
   def isLegal: Boolean = {
     executeMode match {
-      case FlinkK8sExecuteMode.APPLICATION =>
+      case FlinkK8sExecuteModeEnum.APPLICATION =>
         Try(namespace.nonEmpty).getOrElse(false) && Try(clusterId.nonEmpty).getOrElse(false)
-      case FlinkK8sExecuteMode.SESSION =>
-        Try(namespace.nonEmpty).getOrElse(false) && Try(clusterId.nonEmpty).getOrElse(false) && Try(jobId.nonEmpty).getOrElse(false)
+      case FlinkK8sExecuteModeEnum.SESSION =>
+        Try(namespace.nonEmpty).getOrElse(false) && Try(clusterId.nonEmpty).getOrElse(false) && Try(
+          jobId.nonEmpty).getOrElse(false)
       case _ => false
     }
   }
 
   def isActive: Boolean = isLegal && Try(jobId.nonEmpty).getOrElse(false)
 
-  /**
-   * covert to ClusterKey
-   */
+  /** covert to ClusterKey */
   def toClusterKey: ClusterKey = ClusterKey(executeMode, namespace, clusterId)
 
   override def hashCode(): Int = {
@@ -69,11 +68,21 @@ case class TrackId(executeMode: FlinkK8sExecuteMode.Value,
 }
 
 object TrackId {
-  def onSession(namespace: String, clusterId: String, appId: Long, jobId: String, groupId: String): TrackId = {
-    this(FlinkK8sExecuteMode.SESSION, namespace, clusterId, appId, jobId, groupId)
+  def onSession(
+      namespace: String,
+      clusterId: String,
+      appId: Long,
+      jobId: String,
+      groupId: String): TrackId = {
+    this(FlinkK8sExecuteModeEnum.SESSION, namespace, clusterId, appId, jobId, groupId)
   }
 
-  def onApplication(namespace: String, clusterId: String, appId: Long, jobId: String = null, groupId: String): TrackId = {
-    this(FlinkK8sExecuteMode.APPLICATION, namespace, clusterId, appId, jobId, groupId)
+  def onApplication(
+      namespace: String,
+      clusterId: String,
+      appId: Long,
+      jobId: String = null,
+      groupId: String): TrackId = {
+    this(FlinkK8sExecuteModeEnum.APPLICATION, namespace, clusterId, appId, jobId, groupId)
   }
 }

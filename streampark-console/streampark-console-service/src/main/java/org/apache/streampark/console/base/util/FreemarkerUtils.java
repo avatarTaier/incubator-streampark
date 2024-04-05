@@ -31,30 +31,35 @@ import java.io.StringWriter;
 @Slf4j
 public class FreemarkerUtils {
   private static final Configuration CONFIGURATION;
+  private static final String ALERT_TEMPLATE = "classpath:alert-template";
+  private static final String TEMPLATE = "template";
+  private static final String ENCODING = "UTF-8";
 
   static {
     SpringTemplateLoader templateLoader =
-        new SpringTemplateLoader(new DefaultResourceLoader(), "classpath:alert-template");
+        new SpringTemplateLoader(new DefaultResourceLoader(), ALERT_TEMPLATE);
     CONFIGURATION = new Configuration(Configuration.VERSION_2_3_28);
     CONFIGURATION.setTemplateLoader(templateLoader);
-    CONFIGURATION.setDefaultEncoding("UTF-8");
+    CONFIGURATION.setDefaultEncoding(ENCODING);
   }
+
+  private FreemarkerUtils() {}
 
   public static Template loadTemplateFile(String fileName) throws ExceptionInInitializerError {
     try {
       return CONFIGURATION.getTemplate(fileName);
     } catch (IOException e) {
       log.error("{} not found!", fileName);
-      throw new ExceptionInInitializerError(fileName + " not found!");
+      throw new ExceptionInInitializerError(String.format("%s not found!", fileName));
     }
   }
 
   public static Template loadTemplateString(String template) throws Exception {
     Configuration configuration = new Configuration(Configuration.VERSION_2_3_28);
     StringTemplateLoader stringTemplateLoader = new StringTemplateLoader();
-    stringTemplateLoader.putTemplate("template", template);
+    stringTemplateLoader.putTemplate(TEMPLATE, template);
     configuration.setTemplateLoader(stringTemplateLoader);
-    return configuration.getTemplate("template");
+    return configuration.getTemplate(TEMPLATE);
   }
 
   public static String format(Template template, Object dataModel) throws TemplateException {

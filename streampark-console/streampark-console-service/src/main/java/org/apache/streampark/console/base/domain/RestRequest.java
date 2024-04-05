@@ -17,18 +17,29 @@
 
 package org.apache.streampark.console.base.domain;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import org.springdoc.api.annotations.ParameterObject;
 
 import java.io.Serializable;
 
+@ParameterObject
 @Data
 public class RestRequest implements Serializable {
 
-  private static final long serialVersionUID = -4869594085374385813L;
+  private static final long serialVersionUID = 1L;
 
+  @Schema(example = "10", required = true)
   private int pageSize = 10;
+
+  @Schema(example = "1", required = true)
   private int pageNum = 1;
 
-  private String sortField;
-  private String sortOrder;
+  @Schema(example = "", description = "e.g. create_time")
+  private String sortField = Constant.DEFAULT_SORT_FIELD;
+
+  @Schema(
+      example = "",
+      allowableValues = {"asc", "desc"})
+  private String sortOrder = Constant.ORDER_DESC;
 }

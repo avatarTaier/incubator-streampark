@@ -40,10 +40,12 @@ public class ApplicationLog {
   private String jobManagerUrl;
   /** start status */
   private Boolean success;
-
+  /** option name */
+  private Integer optionName;
   /** option time */
   private Date optionTime;
-
   /** exception at the start */
   private String exception;
+  /** The user who operates the application */
+  private Long userId;
 }

@@ -16,23 +16,33 @@
  */
 package org.apache.streampark.common.conf
 
-import org.apache.streampark.common.util.Utils.StringCasts
+import org.apache.streampark.common.util.ImplicitsUtils._
 
 import java.util.Properties
+
 import scala.util.{Failure, Success, Try}
 
 /**
- * @param key          key of configuration that consistent with the spring config.
- * @param defaultValue default value of configuration that <b>should not be null</b>.
- * @param classType    the class type of value. <b>please use java class type</b>.
- * @param required     is required <b>
- * @param description  description of configuration.
- * @param handle       Processing function of special parameters
+ * @param key
+ *   key of configuration that consistent with the spring config.
+ * @param defaultValue
+ *   default value of configuration that <b>should not be null</b>.
+ * @param classType
+ *   the class type of value. <b>please use java class type</b>.
+ * @param required
+ *   is required <b>
+ * @param description
+ *   description of configuration.
+ * @param handle
+ *   Processing function of special parameters
  */
-case class ConfigOption[T](key: String, defaultValue: T = null, required: Boolean, classType: Class[_], description: String = "", handle: String => T = null)(
-    implicit
-    prefix: String = "",
-    prop: Properties) {
+case class ConfigOption[T](
+    key: String,
+    defaultValue: T = null,
+    required: Boolean,
+    classType: Class[_],
+    description: String = "",
+    handle: String => T = null)(implicit prefix: String = "", prop: Properties) {
 
   private[this] lazy val fullKey = if (prefix != null && prefix.nonEmpty) s"$prefix.$key" else key
 
@@ -40,7 +50,7 @@ case class ConfigOption[T](key: String, defaultValue: T = null, required: Boolea
     case null =>
       if (required) {
         prop.get(fullKey) match {
-          case null => throw error("is require")
+          case null => throw error("Is require")
           case v => v.toString.cast[T](classType)
         }
       } else {

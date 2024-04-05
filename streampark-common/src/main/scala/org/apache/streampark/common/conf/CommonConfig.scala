@@ -45,7 +45,7 @@ object CommonConfig {
     key = "streampark.yarn.http-auth",
     defaultValue = "",
     classType = classOf[String],
-    description = "yarn http auth type. ex: sample, kerberos")
+    description = "yarn http auth type. ex: simple, kerberos")
 
   val DOCKER_HOST: InternalOption = InternalOption(
     key = "streampark.docker.http-client.docker-host",
@@ -57,19 +57,22 @@ object CommonConfig {
     key = "streampark.docker.http-client.max-connections",
     defaultValue = 100,
     classType = classOf[JavaInt],
-    description = "instantiating max connections for DockerHttpClient")
+    description = "instantiating max connections for DockerHttpClient"
+  )
 
   val DOCKER_CONNECTION_TIMEOUT_SEC: InternalOption = InternalOption(
     key = "streampark.docker.http-client.connection-timeout-sec",
     defaultValue = 100L,
     classType = classOf[JavaLong],
-    description = "instantiating connection timeout for DockerHttpClient")
+    description = "instantiating connection timeout for DockerHttpClient"
+  )
 
   val DOCKER_RESPONSE_TIMEOUT_SEC: InternalOption = InternalOption(
     key = "streampark.docker.http-client.response-timeout-sec",
     defaultValue = 120L,
     classType = classOf[JavaLong],
-    description = "instantiating connection timeout for DockerHttpClient")
+    description = "instantiating connection timeout for DockerHttpClient"
+  )
 
   val MAVEN_SETTINGS_PATH: InternalOption = InternalOption(
     key = "streampark.maven.settings",
@@ -81,7 +84,8 @@ object CommonConfig {
     key = "streampark.maven.central.repository",
     defaultValue = "https://repo1.maven.org/maven2/",
     classType = classOf[String],
-    description = "maven repository used for built-in compilation")
+    description = "maven repository used for built-in compilation"
+  )
 
   val MAVEN_AUTH_USER: InternalOption = InternalOption(
     key = "streampark.maven.auth.user",
@@ -106,5 +110,12 @@ object CommonConfig {
     defaultValue = "1mb",
     classType = classOf[String],
     description = "The maximum size of the default read log")
+
+  val SPRING_PROFILES_ACTIVE: InternalOption = InternalOption(
+    key = "spring.profiles.active",
+    defaultValue = "h2",
+    classType = classOf[String],
+    description = "Use the database type"
+  )
 
 }

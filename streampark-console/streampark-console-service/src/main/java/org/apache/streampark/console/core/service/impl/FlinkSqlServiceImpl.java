@@ -17,13 +17,16 @@
 
 package org.apache.streampark.console.core.service.impl;
 
+import org.apache.streampark.common.util.AssertUtils;
 import org.apache.streampark.common.util.DeflaterUtils;
-import org.apache.streampark.common.util.Utils;
+import org.apache.streampark.common.util.ExceptionUtils;
+import org.apache.streampark.console.base.domain.RestRequest;
+import org.apache.streampark.console.base.mybatis.pager.MybatisPager;
 import org.apache.streampark.console.core.entity.Application;
 import org.apache.streampark.console.core.entity.FlinkEnv;
 import org.apache.streampark.console.core.entity.FlinkSql;
-import org.apache.streampark.console.core.enums.CandidateType;
-import org.apache.streampark.console.core.enums.EffectiveType;
+import org.apache.streampark.console.core.enums.CandidateTypeEnum;
+import org.apache.streampark.console.core.enums.EffectiveTypeEnum;
 import org.apache.streampark.console.core.mapper.FlinkSqlMapper;
 import org.apache.streampark.console.core.service.ApplicationBackUpService;
 import org.apache.streampark.console.core.service.EffectiveService;
@@ -34,6 +37,7 @@ import org.apache.streampark.flink.proxy.FlinkShimsProxy;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
@@ -90,38 +94,37 @@ public class FlinkSqlServiceImpl extends ServiceImpl<FlinkSqlMapper, FlinkSql>
   }
 
   @Override
-  @Transactional(rollbackFor = {Exception.class})
   public void create(FlinkSql flinkSql) {
     Integer version = this.baseMapper.getLatestVersion(flinkSql.getAppId());
     flinkSql.setVersion(version == null ? 1 : version + 1);
     String sql = DeflaterUtils.zipString(flinkSql.getSql());
     flinkSql.setSql(sql);
     this.save(flinkSql);
-    this.setCandidate(CandidateType.NEW, flinkSql.getAppId(), flinkSql.getId());
+    this.setCandidate(CandidateTypeEnum.NEW, flinkSql.getAppId(), flinkSql.getId());
   }
 
   @Override
-  public void setCandidate(CandidateType candidateType, Long appId, Long sqlId) {
+  public void setCandidate(CandidateTypeEnum candidateTypeEnum, Long appId, Long sqlId) {
     this.update(
         new LambdaUpdateWrapper<FlinkSql>()
             .eq(FlinkSql::getAppId, appId)
-            .set(FlinkSql::getCandidate, CandidateType.NONE.get()));
+            .set(FlinkSql::getCandidate, CandidateTypeEnum.NONE.get()));
 
     this.update(
         new LambdaUpdateWrapper<FlinkSql>()
             .eq(FlinkSql::getId, sqlId)
-            .set(FlinkSql::getCandidate, candidateType.get()));
+            .set(FlinkSql::getCandidate, candidateTypeEnum.get()));
   }
 
   @Override
-  public List<FlinkSql> history(Application application) {
+  public List<FlinkSql> listFlinkSqlHistory(Long appId) {
     LambdaQueryWrapper<FlinkSql> queryWrapper =
         new LambdaQueryWrapper<FlinkSql>()
-            .eq(FlinkSql::getAppId, application.getId())
+            .eq(FlinkSql::getAppId, appId)
             .orderByDesc(FlinkSql::getVersion);
 
     List<FlinkSql> sqlList = this.baseMapper.selectList(queryWrapper);
-    FlinkSql effective = getEffective(application.getId(), false);
+    FlinkSql effective = getEffective(appId, false);
     if (effective != null && !sqlList.isEmpty()) {
       for (FlinkSql sql : sqlList) {
         if (sql.getId().equals(effective.getId())) {
@@ -134,20 +137,20 @@ public class FlinkSqlServiceImpl extends ServiceImpl<FlinkSqlMapper, FlinkSql>
   }
 
   @Override
-  public FlinkSql getCandidate(Long appId, CandidateType candidateType) {
+  public FlinkSql getCandidate(Long appId, CandidateTypeEnum candidateTypeEnum) {
     LambdaQueryWrapper<FlinkSql> queryWrapper =
         new LambdaQueryWrapper<FlinkSql>().eq(FlinkSql::getAppId, appId);
-    if (candidateType == null) {
-      queryWrapper.gt(FlinkSql::getCandidate, CandidateType.NONE.get());
+    if (candidateTypeEnum == null) {
+      queryWrapper.gt(FlinkSql::getCandidate, CandidateTypeEnum.NONE.get());
     } else {
-      queryWrapper.eq(FlinkSql::getCandidate, candidateType.get());
+      queryWrapper.eq(FlinkSql::getCandidate, candidateTypeEnum.get());
     }
     return baseMapper.selectOne(queryWrapper);
   }
 
   @Override
   public void toEffective(Long appId, Long sqlId) {
-    effectiveService.saveOrUpdate(appId, EffectiveType.FLINKSQL, sqlId);
+    effectiveService.saveOrUpdate(appId, EffectiveTypeEnum.FLINKSQL, sqlId);
   }
 
   @Override
@@ -155,11 +158,11 @@ public class FlinkSqlServiceImpl extends ServiceImpl<FlinkSqlMapper, FlinkSql>
     this.update(
         new LambdaUpdateWrapper<FlinkSql>()
             .eq(FlinkSql::getId, id)
-            .set(FlinkSql::getCandidate, CandidateType.NONE.get()));
+            .set(FlinkSql::getCandidate, CandidateTypeEnum.NONE.get()));
   }
 
   @Override
-  public void removeApp(Long appId) {
+  public void removeByAppId(Long appId) {
     LambdaQueryWrapper<FlinkSql> queryWrapper =
         new LambdaQueryWrapper<FlinkSql>().eq(FlinkSql::getAppId, appId);
     baseMapper.delete(queryWrapper);
@@ -168,12 +171,12 @@ public class FlinkSqlServiceImpl extends ServiceImpl<FlinkSqlMapper, FlinkSql>
   @Override
   @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
   public void rollback(Application application) {
-    FlinkSql sql = getCandidate(application.getId(), CandidateType.HISTORY);
-    Utils.notNull(sql);
+    FlinkSql sql = getCandidate(application.getId(), CandidateTypeEnum.HISTORY);
+    AssertUtils.notNull(sql);
     try {
       // check and backup current job
       FlinkSql effectiveSql = getEffective(application.getId(), false);
-      Utils.notNull(effectiveSql);
+      AssertUtils.notNull(effectiveSql);
       // rollback history sql
       backUpService.rollbackFlinkSql(application, sql);
     } catch (Exception e) {
@@ -198,14 +201,34 @@ public class FlinkSqlServiceImpl extends ServiceImpl<FlinkSqlMapper, FlinkSql>
             }
             return FlinkShimsProxy.getObject(this.getClass().getClassLoader(), result);
           } catch (Throwable e) {
-            log.error("verifySql invocationTargetException: {}", Utils.stringifyException(e));
+            log.error(
+                "verifySql invocationTargetException: {}", ExceptionUtils.stringifyException(e));
           }
           return null;
         });
   }
 
   @Override
-  public List<FlinkSql> getByTeamId(Long teamId) {
-    return this.baseMapper.getByTeamId(teamId);
+  public List<FlinkSql> listByTeamId(Long teamId) {
+    return this.baseMapper.selectSqlsByTeamId(teamId);
+  }
+
+  @Override
+  public IPage<FlinkSql> getPage(Long appId, RestRequest request) {
+    request.setSortField("version");
+    Page<FlinkSql> page = MybatisPager.getPage(request);
+    LambdaQueryWrapper<FlinkSql> queryWrapper =
+        new LambdaQueryWrapper<FlinkSql>().eq(FlinkSql::getAppId, appId);
+    IPage<FlinkSql> sqlList = this.baseMapper.selectPage(page, queryWrapper);
+    FlinkSql effectiveSql = baseMapper.getEffective(appId);
+    if (effectiveSql != null) {
+      for (FlinkSql sql : sqlList.getRecords()) {
+        if (sql.getId().equals(effectiveSql.getId())) {
+          sql.setEffective(true);
+          break;
+        }
+      }
+    }
+    return sqlList;
   }
 }

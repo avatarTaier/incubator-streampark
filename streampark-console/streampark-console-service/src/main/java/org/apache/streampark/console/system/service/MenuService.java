@@ -22,10 +22,10 @@ import org.apache.streampark.console.system.entity.Menu;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/** This interface is used to control the menu of the page */
 public interface MenuService extends IService<Menu> {
 
   /**
@@ -35,22 +35,31 @@ public interface MenuService extends IService<Menu> {
    * @param teamId team id. If it's null, will find permissions from all teams.
    * @return permissions
    */
-  List<String> findUserPermissions(Long userId, Long teamId);
-
-  List<Menu> findUserMenus(Long userId, Long teamId);
-
-  Map<String, Object> findMenus(Menu menu);
-
-  void createMenu(Menu menu);
-
-  void updateMenu(Menu menu) throws Exception;
+  List<String> listPermissions(Long userId, Long teamId);
 
   /**
-   * Recursively delete menu buttons
+   * * List menus based on user id and team id
    *
-   * @param menuIds menuIds
+   * @param userId user id
+   * @param teamId team id
+   * @return List of Menu
    */
-  void deleteMenus(String[] menuIds) throws Exception;
+  List<Menu> listMenus(Long userId, Long teamId);
 
-  ArrayList<VueRouter<Menu>> getUserRouters(Long userId, Long teamId);
+  /**
+   * List menus map based on menu
+   *
+   * @param menu Menu
+   * @return Menus Map
+   */
+  Map<String, Object> listMenuMap(Menu menu);
+
+  /**
+   * List Menu Routers based on user id and team id
+   *
+   * @param userId user id
+   * @param teamId team id
+   * @return List of Menu VueRouter
+   */
+  List<VueRouter<Menu>> listRouters(Long userId, Long teamId);
 }

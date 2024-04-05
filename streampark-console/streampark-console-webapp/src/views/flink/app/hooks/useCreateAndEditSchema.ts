@@ -16,7 +16,7 @@
  */
 import { FormSchema } from '/@/components/Table';
 import { computed, ref, unref, h, Ref, onMounted, reactive } from 'vue';
-import { k8sRestExposedType, resolveOrder } from '../data';
+import { executionModes, k8sRestExposedType, resolveOrder } from '../data';
 import optionData from '../data/option';
 import {
   getAlertSvgIcon,
@@ -25,34 +25,38 @@ import {
   renderInputGroup,
   renderIsSetConfig,
   renderOptionsItems,
+  renderStreamParkResource,
   renderTotalMemory,
   renderYarnQueue,
 } from './useFlinkRender';
 
-import { fetchCheckName } from '/@/api/flink/app/app';
+import { fetchCheckName } from '/@/api/flink/app';
 import { RuleObject } from 'ant-design-vue/lib/form';
 import { StoreValue } from 'ant-design-vue/lib/form/interface';
 import { useDrawer } from '/@/components/Drawer';
 import { Alert } from 'ant-design-vue';
 import Icon from '/@/components/Icon';
 import { useMessage } from '/@/hooks/web/useMessage';
-import { fetchVariableAll } from '/@/api/flink/variable';
+import { fetchVariableAll } from '/@/api/resource/variable';
 import {
   fetchFlinkBaseImages,
   fetchK8sNamespaces,
   fetchSessionClusterIds,
-} from '/@/api/flink/app/flinkHistory';
-import { fetchSelect } from '/@/api/flink/project';
-import { fetchAlertSetting } from '/@/api/flink/setting/alert';
-import { fetchFlinkCluster } from '/@/api/flink/setting/flinkCluster';
-import { fetchFlinkEnv } from '/@/api/flink/setting/flinkEnv';
-import { FlinkEnv } from '/@/api/flink/setting/types/flinkEnv.type';
-import { AlertSetting } from '/@/api/flink/setting/types/alert.type';
-import { FlinkCluster } from '/@/api/flink/setting/types/flinkCluster.type';
-import { ClusterStateEnum, ExecModeEnum, JobTypeEnum } from '/@/enums/flinkEnum';
+} from '/@/api/flink/flinkHistory';
+import { fetchSelect } from '/@/api/resource/project';
+import { fetchAlertSetting } from '/@/api/setting/alert';
+import { fetchFlinkCluster } from '/@/api/flink/flinkCluster';
+import { fetchFlinkEnv, fetchListFlinkEnv } from '/@/api/flink/flinkEnv';
+import { FlinkEnv } from '/@/api/flink/flinkEnv.type';
+import { AlertSetting } from '/@/api/setting/types/alert.type';
+import { FlinkCluster } from '/@/api/flink/flinkCluster.type';
+import { AppTypeEnum, ClusterStateEnum, ExecModeEnum, JobTypeEnum } from '/@/enums/flinkEnum';
 import { isK8sExecMode } from '../utils';
 import { useI18n } from '/@/hooks/web/useI18n';
+import { fetchCheckHadoop } from '/@/api/setting';
+import { fetchTeamResource } from '/@/api/resource/upload';
 const { t } = useI18n();
+
 export interface HistoryRecord {
   k8sNamespace: Array<string>;
   k8sSessionClusterId: Array<string>;
@@ -66,6 +70,7 @@ export const useCreateAndEditSchema = (
   const alerts = ref<AlertSetting[]>([]);
   const flinkClusters = ref<FlinkCluster[]>([]);
   const projectList = ref<Array<any>>([]);
+  const teamResource = ref<Array<any>>([]);
   const historyRecord = reactive<HistoryRecord>({
     k8sNamespace: [],
     k8sSessionClusterId: [],
@@ -78,7 +83,7 @@ export const useCreateAndEditSchema = (
 
   const [registerConfDrawer, { openDrawer: openConfDrawer }] = useDrawer();
 
-  /* 
+  /*
   !The original item is also unassigned
   */
   function getConfigSchemas() {
@@ -94,7 +99,7 @@ export const useCreateAndEditSchema = (
       .filter((o) => {
         // Edit mode has one more filter condition
         if (edit?.mode) {
-          return o.executionMode == executionMode && o.clusterState === ClusterStateEnum.STARTED;
+          return o.executionMode == executionMode && o.clusterState === ClusterStateEnum.RUNNING;
         } else {
           return o.executionMode == executionMode;
         }
@@ -109,40 +114,30 @@ export const useCreateAndEditSchema = (
         label: 'Flink SQL',
         component: 'Input',
         slot: 'flinkSql',
-        ifShow: ({ values }) => {
-          if (edit?.appId) {
-            return values?.jobType == JobTypeEnum.SQL;
-          } else {
-            return values?.jobType == 'sql';
-          }
-        },
+        ifShow: ({ values }) => values?.jobType == JobTypeEnum.SQL,
         rules: [{ required: true, message: t('flink.app.addAppTips.flinkSqlIsRequiredMessage') }],
+      },
+      {
+        field: 'teamResource',
+        label: t('flink.app.resource'),
+        component: 'Select',
+        render: ({ model }) => renderStreamParkResource({ model, resources: unref(teamResource) }),
+        ifShow: ({ values }) => values.jobType == JobTypeEnum.SQL,
       },
       {
         field: 'dependency',
         label: t('flink.app.dependency'),
         component: 'Input',
         slot: 'dependency',
-        ifShow: ({ values }) => {
-          if (edit?.appId) {
-            return values.jobType == JobTypeEnum.SQL;
-          } else {
-            return values?.jobType == 'sql';
-          }
-        },
+        ifShow: ({ values }) => values.jobType != JobTypeEnum.JAR,
       },
       { field: 'configOverride', label: '', component: 'Input', show: false },
       {
         field: 'isSetConfig',
         label: t('flink.app.appConf'),
         component: 'Switch',
-        ifShow: ({ values }) => {
-          if (edit?.appId) {
-            return values?.jobType == JobTypeEnum.SQL && !isK8sExecMode(values.executionMode);
-          } else {
-            return values?.jobType == 'sql' && !isK8sExecMode(values.executionMode);
-          }
-        },
+        ifShow: ({ values }) =>
+          values?.jobType == JobTypeEnum.SQL && !isK8sExecMode(values.executionMode),
         render({ model, field }) {
           return renderIsSetConfig(model, field, registerConfDrawer, openConfDrawer);
         },
@@ -150,9 +145,9 @@ export const useCreateAndEditSchema = (
     ];
   });
 
-  function handleFlinkVersion(id: number | string) {
+  async function handleFlinkVersion(id: number | string) {
     if (!dependencyRef) return;
-    scalaVersion = unref(flinkEnvs)?.find((v) => v.id === id)?.scalaVersion || '';
+    scalaVersion = (await fetchFlinkEnv(id as string))?.scalaVersion;
     checkPomScalaVersion();
   }
 
@@ -267,13 +262,13 @@ export const useCreateAndEditSchema = (
         ],
       },
       {
-        field: 'clusterId',
+        field: 'flinkClusterId',
         label: t('flink.app.kubernetesClusterId'),
         component: 'Select',
         ifShow: ({ values }) => values.executionMode == ExecModeEnum.KUBERNETES_SESSION,
         componentProps: {
           placeholder: t('flink.app.addAppTips.kubernetesClusterIdPlaceholder'),
-          options: getExecutionCluster(ExecModeEnum.KUBERNETES_SESSION, 'clusterId'),
+          options: getExecutionCluster(ExecModeEnum.KUBERNETES_SESSION, 'id'),
         },
         rules: [
           {
@@ -332,7 +327,7 @@ export const useCreateAndEditSchema = (
 
   const getFlinkFormOtherSchemas = computed((): FormSchema[] => {
     const commonInputNum = {
-      min: 1,
+      min: 0,
       step: 1,
       class: '!w-full',
     };
@@ -491,7 +486,12 @@ export const useCreateAndEditSchema = (
         component: 'InputTextArea',
         defaultValue: '',
         slot: 'args',
-        ifShow: ({ values }) => (edit?.mode ? true : values.jobType == 'customcode'),
+        ifShow: ({ values }) => (edit?.mode ? true : values.jobType != JobTypeEnum.SQL),
+      },
+      {
+        field: 'hadoopUser',
+        label: t('flink.app.hadoopUser'),
+        component: 'Input',
       },
       {
         field: 'description',
@@ -523,20 +523,75 @@ export const useCreateAndEditSchema = (
                 ],
               },
             );
-          } else {
+          } else if (model.jobType == JobTypeEnum.SQL) {
             return getAlertSvgIcon('fql', 'Flink SQL');
+          } else if (model.jobType == JobTypeEnum.PYFLINK) {
+            return getAlertSvgIcon('py', 'Py Flink');
           }
+          return '';
         },
       },
       {
         field: 'appType',
         label: t('flink.app.appType'),
         component: 'Input',
-        render: () => getAlertSvgIcon('flink', 'StreamPark Flink'),
+        render: ({ model }) => {
+          if (model.appType == AppTypeEnum.APACHE_FLINK) {
+            return getAlertSvgIcon('flink', 'Apache Flink');
+          } else if (model.appType == AppTypeEnum.STREAMPARK_FLINK) {
+            return getAlertSvgIcon('flink', 'StreamPark Flink');
+          } else if (model.appType == AppTypeEnum.APACHE_SPARK) {
+            return getAlertSvgIcon('spark', 'Apache Spark');
+          } else if (model.appType == AppTypeEnum.STREAMPARK_SPARK) {
+            return getAlertSvgIcon('spark', 'StreamPark Spark');
+          }
+          return '';
+        },
       },
     ];
   });
-
+  const getExecutionModeSchema = computed((): FormSchema[] => {
+    return [
+      {
+        field: 'executionMode',
+        label: t('flink.app.executionMode'),
+        component: 'Select',
+        itemProps: {
+          autoLink: false, //Resolve multiple trigger validators with null value ·
+        },
+        componentProps: {
+          placeholder: t('flink.app.addAppTips.executionModePlaceholder'),
+          options: executionModes,
+        },
+        rules: [
+          {
+            required: true,
+            validator: async (_rule, value) => {
+              if (value === null || value === undefined || value === '') {
+                return Promise.reject(t('flink.app.addAppTips.executionModeIsRequiredMessage'));
+              } else {
+                if (
+                  [
+                    ExecModeEnum.YARN_PER_JOB,
+                    ExecModeEnum.YARN_SESSION,
+                    ExecModeEnum.YARN_APPLICATION,
+                  ].includes(value)
+                ) {
+                  const res = await fetchCheckHadoop();
+                  if (res) {
+                    return Promise.resolve();
+                  } else {
+                    return Promise.reject(t('flink.app.addAppTips.hadoopEnvInitMessage'));
+                  }
+                }
+                return Promise.resolve();
+              }
+            },
+          },
+        ],
+      },
+    ];
+  });
   onMounted(async () => {
     /* Get project data */
     fetchSelect({}).then((res) => {
@@ -549,7 +604,7 @@ export const useCreateAndEditSchema = (
     });
 
     //get flinkEnv
-    fetchFlinkEnv().then((res) => {
+    fetchListFlinkEnv().then((res) => {
       flinkEnvs.value = res;
     });
     //get flinkCluster
@@ -575,6 +630,11 @@ export const useCreateAndEditSchema = (
         };
       });
     });
+
+    /* Get team dependencies */
+    fetchTeamResource({}).then((res) => {
+      teamResource.value = res;
+    });
   });
   return {
     projectList,
@@ -583,10 +643,12 @@ export const useCreateAndEditSchema = (
     flinkClusters,
     historyRecord,
     suggestions,
+    teamResource,
     getFlinkSqlSchema,
     getFlinkClusterSchemas,
     getFlinkFormOtherSchemas,
     getFlinkTypeSchema,
+    getExecutionModeSchema,
     openConfDrawer,
   };
 };

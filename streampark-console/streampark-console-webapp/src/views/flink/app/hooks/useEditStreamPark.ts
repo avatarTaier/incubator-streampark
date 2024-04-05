@@ -16,13 +16,12 @@
  */
 import { FormSchema } from '/@/components/Table';
 import { computed, h, Ref, ref, unref } from 'vue';
-import { executionModes } from '../data';
 import { ExecModeEnum, JobTypeEnum, UseStrategyEnum } from '/@/enums/flinkEnum';
 import { useCreateAndEditSchema } from './useCreateAndEditSchema';
 import { renderSqlHistory } from './useFlinkRender';
 import { Alert } from 'ant-design-vue';
 import { decodeByBase64 } from '/@/utils/cipher';
-import { fetchFlinkSql } from '/@/api/flink/app/flinkSql';
+import { fetchFlinkSql } from '/@/api/flink/flinkSql';
 import { toPomString } from '../utils/Pom';
 import { handleDependencyJsonToPom } from '../utils';
 import { useDrawer } from '/@/components/Drawer';
@@ -46,6 +45,7 @@ export const useEditStreamParkSchema = (
     getFlinkClusterSchemas,
     getFlinkFormOtherSchemas,
     getFlinkTypeSchema,
+    getExecutionModeSchema,
     suggestions,
   } = useCreateAndEditSchema(dependencyRef, {
     appId: route.query.appId as string,
@@ -116,15 +116,7 @@ export const useEditStreamParkSchema = (
   const getEditStreamParkFormSchema = computed((): FormSchema[] => {
     return [
       ...getFlinkTypeSchema.value,
-      {
-        field: 'executionMode',
-        label: t('flink.app.executionMode'),
-        component: 'Select',
-        componentProps: {
-          placeholder: t('flink.app.executionMode'),
-          options: executionModes,
-        },
-      },
+      ...getExecutionModeSchema.value,
       ...getFlinkClusterSchemas.value,
       {
         field: 'flinkSqlHistory',

@@ -39,8 +39,11 @@ import { handleConfTemplate } from '/@/api/flink/config';
 import { decodeByBase64 } from '/@/utils/cipher';
 import { useMessage } from '/@/hooks/web/useMessage';
 import { SelectValue } from 'ant-design-vue/lib/select';
-import { CandidateTypeEnum, FailoverStrategyEnum } from '/@/enums/flinkEnum';
+import { CandidateTypeEnum, FailoverStrategyEnum, RestoreModeEnum } from '/@/enums/flinkEnum';
 import { useI18n } from '/@/hooks/web/useI18n';
+import { fetchYarnQueueList } from '/@/api/setting/yarnQueue';
+import { ApiSelect } from '/@/components/Form';
+import { ResourceTypeEnum } from '/@/views/resource/upload/upload.data';
 
 const { t } = useI18n();
 /* render input dropdown component */
@@ -224,7 +227,7 @@ export const renderOptionsItems = (
             rules={[{ validator: conf.validator }]}
           />
         )}
-        {conf.type === 'switch' && <span class="conf-switch">({conf.placeholder})</span>}
+        {conf.type === 'switch' && <span class="tip-info">({conf.placeholder})</span>}
         <p class="conf-desc"> {descriptionFilter(conf)} </p>
       </Form.Item>
     );
@@ -235,18 +238,24 @@ export const renderOptionsItems = (
 export const renderYarnQueue = ({ model, field }: RenderCallbackParams) => {
   return (
     <div>
-      <Input
+      <ApiSelect
         name="yarnQueue"
-        placeholder={t('flink.app.addAppTips.yarnQueuePlaceholder')}
+        placeholder={t('setting.yarnQueue.placeholder.yarnQueueLabelExpression')}
+        api={fetchYarnQueueList}
+        params={{ page: 1, pageSize: 9999 }}
+        resultField={'records'}
+        labelField={'queueLabel'}
+        valueField={'queueLabel'}
+        showSearch={true}
         value={model[field]}
-        onInput={(e: ChangeEvent) => (model[field] = e?.target?.value)}
+        onChange={(value: string) => (model[field] = value)}
       />
       <p class="conf-desc mt-10px">
         <span class="note-info">
           <Tag color="#2db7f5" class="tag-note">
             {t('flink.app.noteInfo.note')}
           </Tag>
-          {t('flink.app.noteInfo.yarnQueue')}
+          {t('setting.yarnQueue.selectionHint')}
         </span>
       </p>
     </div>
@@ -451,6 +460,11 @@ export const renderSqlHistory = (
                 {t('flink.app.flinkSql.candidateVersion')}
               </Tag>
             )}
+
+            <span style="color: darkgrey">
+              <Icon icon="ant-design:clock-circle-outlined" />
+              {ver.createTime}
+            </span>
           </div>
         </Select.Option>
       );
@@ -501,16 +515,132 @@ export const renderResourceFrom = (model: Recordable) => {
       value={model.resourceFrom}
       placeholder="Please select resource from"
     >
-      <Select.Option value="csv">
+      <Select.Option value="1">
         <SvgIcon name="github" />
-        <span class="pl-10px">CICD</span>
-        <span class="gray">(build from CVS)</span>
+        <span class="pl-10px">Project</span>
+        <span class="gray"> (build from Project)</span>
       </Select.Option>
-      <Select.Option value="upload">
+      <Select.Option value="2">
         <SvgIcon name="upload" />
         <span class="pl-10px">Upload</span>
-        <span class="gray">(upload local job)</span>
+        <span class="gray"> (upload local job)</span>
       </Select.Option>
     </Select>
+  );
+};
+
+export const renderStreamParkResource = ({ model, resources }) => {
+  const renderOptions = () => {
+    return (resources || [])
+      .filter((item) => item.resourceType !== ResourceTypeEnum.FLINK_APP)
+      .map((resource) => {
+        return (
+          <Select.Option
+            key={resource.id}
+            label={resource.resourceType + '-' + resource.resourceName}
+          >
+            <div>
+              <Tag color="green" style=";margin-left: 5px;" size="small">
+                {resource.resourceType}
+              </Tag>
+              <span style="color: darkgrey">{resource.resourceName}</span>
+            </div>
+          </Select.Option>
+        );
+      });
+  };
+
+  return (
+    <div>
+      <Select
+        show-search
+        allow-clear
+        optionFilterProp="label"
+        mode="multiple"
+        max-tag-count={3}
+        onChange={(value) => (model.teamResource = value)}
+        value={model.teamResource}
+        placeholder={t('flink.app.resourcePlaceHolder')}
+      >
+        {renderOptions()}
+      </Select>
+    </div>
+  );
+};
+
+export const renderStreamParkJarApp = ({ model, resources }) => {
+  function handleAppChange(value: SelectValue) {
+    const res = resources.filter((item) => item.id == value)[0];
+    model.mainClass = res.mainClass;
+    model.uploadJobJar = res.resourceName;
+  }
+
+  const renderOptions = () => {
+    console.log('resources', resources);
+    return (resources || [])
+      .filter((item) => item.resourceType == ResourceTypeEnum.FLINK_APP)
+      .map((resource) => {
+        return (
+          <Select.Option key={resource.id} label={resource.resourceName}>
+            <div>
+              <Tag color="green" style=";margin-left: 5px;" size="small">
+                {resource.resourceType}
+              </Tag>
+              <span style="color: darkgrey">{resource.resourceName}</span>
+            </div>
+          </Select.Option>
+        );
+      });
+  };
+
+  return (
+    <div>
+      <Select
+        show-search
+        allow-clear
+        optionFilterProp="label"
+        onChange={handleAppChange}
+        value={model.uploadJobJar}
+        placeholder={t('flink.app.selectAppPlaceHolder')}
+      >
+        {renderOptions()}
+      </Select>
+    </div>
+  );
+};
+
+export const renderFlinkAppRestoreMode = ({ model, field }: RenderCallbackParams) => {
+  return (
+    <div>
+      <Select
+        value={model[field]}
+        onChange={(value) => (model[field] = value)}
+        placeholder="Please select restore mode"
+      >
+        <Select.Option key="no_claim" value={RestoreModeEnum.NO_CLAIM}>
+          <Tag color="gray" style=";margin-left: 5px;" size="small">
+            NO_CLAIM
+          </Tag>
+        </Select.Option>
+        <Select.Option key="claim" value={RestoreModeEnum.CLAIM}>
+          <Tag color="#108ee9" style=";margin-left: 5px;" size="small">
+            CLAIM
+          </Tag>
+        </Select.Option>
+        <Select.Option key="legacy" value={RestoreModeEnum.LEGACY}>
+          <Tag color="#8E50FF" style=";margin-left: 5px;" size="small">
+            LEGACY
+          </Tag>
+        </Select.Option>
+      </Select>
+      <p class="mt-10px">
+        <span class="note-info">
+          <Tag color="#2db7f5" class="tag-note" size="small">
+            {t('flink.app.noteInfo.note')}
+          </Tag>
+          <span class="tip-info">{t('flink.app.restoreModeTip')}</span>
+        </span>
+      </p>
+    </div>
   );
 };

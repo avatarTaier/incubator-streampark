@@ -1,25 +1,12 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 import type { GlobEnvConfig } from '/#/config';
 
 import { warn } from '/@/utils/log';
 import pkg from '../../package.json';
-import { getConfigFileName } from '../../build/getConfigFileName';
-
+const getVariableName = (title: string) => {
+  return `__PRODUCTION__${title.replace(/\s/g, '_').replace(/-/g, '_') || '__APP'}__CONF__`
+    .toUpperCase()
+    .replace(/\s/g, '');
+};
 export function getCommonStoragePrefix() {
   const { VITE_GLOB_APP_SHORT_NAME } = getAppEnvConfig();
   return `${VITE_GLOB_APP_SHORT_NAME}__${getEnv()}`.toUpperCase();
@@ -31,7 +18,7 @@ export function getStorageShortName() {
 }
 
 export function getAppEnvConfig() {
-  const ENV_NAME = getConfigFileName(import.meta.env);
+  const ENV_NAME = getVariableName(import.meta.env.VITE_GLOB_APP_TITLE);
 
   const ENV = (import.meta.env.DEV
     ? // Get the global configuration (the configuration will be extracted independently when packaging)

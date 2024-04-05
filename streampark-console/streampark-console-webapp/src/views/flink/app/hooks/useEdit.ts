@@ -17,8 +17,8 @@
 import { reactive } from 'vue';
 import { useRoute } from 'vue-router';
 import { optionsValueMapping } from '../data/option';
-import { fetchGet } from '/@/api/flink/app/app';
-import { AppListRecord } from '/@/api/flink/app/app.type';
+import { fetchGet } from '/@/api/flink/app';
+import { AppListRecord } from '/@/api/flink/app.type';
 import { isString } from '/@/utils/is';
 
 export const useEdit = () => {
@@ -44,6 +44,7 @@ export const useEdit = () => {
     Object.assign(defaultOptions, JSON.parse(app.options || '{}'));
     Object.assign(returnData, {
       jobType: res.jobType,
+      appType: res.appType,
       versionId: res.versionId,
       executionMode: res.executionMode,
       resourceFrom: res.resourceFrom,
@@ -75,11 +76,22 @@ export const useEdit = () => {
         } else {
           if (k.startsWith('jobmanager.memory.')) {
             memoryItems.jmMemoryItems.push(key);
-            fieldValueOptions.jmOptionsItem[key] = parseInt(v);
+            if (k === 'jobmanager.memory.jvm-overhead.fraction') {
+              fieldValueOptions.jmOptionsItem[key] = parseFloat(v);
+            } else {
+              fieldValueOptions.jmOptionsItem[key] = parseInt(v);
+            }
           }
           if (k.startsWith('taskmanager.memory.')) {
             memoryItems.tmMemoryItems.push(key);
-            fieldValueOptions.tmOptionsItem[key] = parseInt(v);
+            if (
+              k === 'taskmanager.memory.managed.fraction' ||
+              k === 'taskmanager.memory.jvm-overhead.fraction'
+            ) {
+              fieldValueOptions.tmOptionsItem[key] = parseFloat(v);
+            } else {
+              fieldValueOptions.tmOptionsItem[key] = parseInt(v);
+            }
           }
         }
       } else {

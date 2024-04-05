@@ -16,13 +16,12 @@
  */
 import { FormSchema } from '/@/components/Table';
 import { computed, h, Ref, ref, unref } from 'vue';
-import { executionModes } from '../data';
 
 import { useCreateAndEditSchema } from './useCreateAndEditSchema';
 import { getAlertSvgIcon } from './useFlinkRender';
 import { Alert } from 'ant-design-vue';
 import { useRoute } from 'vue-router';
-import { fetchMain } from '/@/api/flink/app/app';
+import { fetchMain } from '/@/api/flink/app';
 import { ResourceFromEnum } from '/@/enums/flinkEnum';
 
 export const useEditFlinkSchema = (jars: Ref) => {
@@ -35,28 +34,21 @@ export const useEditFlinkSchema = (jars: Ref) => {
     getFlinkClusterSchemas,
     getFlinkFormOtherSchemas,
     getFlinkTypeSchema,
+    getExecutionModeSchema,
     suggestions,
   } = useCreateAndEditSchema(null, { appId: route.query.appId as string, mode: 'streampark' });
 
   const getEditFlinkFormSchema = computed((): FormSchema[] => {
     return [
       ...getFlinkTypeSchema.value,
-      {
-        field: 'executionMode',
-        label: 'Execution Mode',
-        component: 'Select',
-        componentProps: {
-          placeholder: 'Execution Mode',
-          options: executionModes,
-        },
-      },
+      ...getExecutionModeSchema.value,
       {
         field: 'resourceFrom',
         label: 'Resource From',
         component: 'Input',
         render: ({ model }) => {
-          if (model.resourceFrom == ResourceFromEnum.CICD)
-            return getAlertSvgIcon('github', 'CICD (build from CSV)');
+          if (model.resourceFrom == ResourceFromEnum.PROJECT)
+            return getAlertSvgIcon('github', 'Project (build from CSV)');
           else if (model.resourceFrom == ResourceFromEnum.UPLOAD)
             return getAlertSvgIcon('upload', 'Upload (upload local job)');
           else return '';
@@ -68,14 +60,14 @@ export const useEditFlinkSchema = (jars: Ref) => {
         label: 'Project',
         component: 'Input',
         render: ({ model }) => h(Alert, { message: model.projectName, type: 'info' }),
-        ifShow: ({ model }) => model.resourceFrom == ResourceFromEnum.CICD && model.projectName,
+        ifShow: ({ model }) => model.resourceFrom == ResourceFromEnum.PROJECT && model.projectName,
       },
       {
         field: 'module',
         label: 'Module',
         component: 'Input',
         render: ({ model }) => h(Alert, { message: model.module, type: 'info' }),
-        ifShow: ({ model }) => model.resourceFrom == ResourceFromEnum.CICD && model.module,
+        ifShow: ({ model }) => model.resourceFrom == ResourceFromEnum.PROJECT && model.module,
       },
       {
         field: 'jar',
@@ -96,7 +88,7 @@ export const useEditFlinkSchema = (jars: Ref) => {
             },
           };
         },
-        ifShow: ({ model }) => model.resourceFrom == ResourceFromEnum.CICD,
+        ifShow: ({ model }) => model.resourceFrom == ResourceFromEnum.PROJECT,
         rules: [{ required: true, message: 'Please select jar' }],
       },
       {
@@ -104,14 +96,14 @@ export const useEditFlinkSchema = (jars: Ref) => {
         label: 'Upload Job Jar',
         component: 'Select',
         slot: 'uploadJobJar',
-        ifShow: ({ model }) => model.resourceFrom != ResourceFromEnum.CICD,
+        ifShow: ({ model }) => model.resourceFrom != ResourceFromEnum.PROJECT,
       },
       {
         field: 'jar',
         label: 'Program Jar',
         component: 'Input',
         dynamicDisabled: true,
-        ifShow: ({ model }) => model.resourceFrom !== ResourceFromEnum.CICD,
+        ifShow: ({ model }) => model.resourceFrom != ResourceFromEnum.PROJECT,
       },
       {
         field: 'mainClass',

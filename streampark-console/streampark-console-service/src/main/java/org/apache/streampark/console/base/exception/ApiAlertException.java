@@ -25,10 +25,10 @@ import java.util.Objects;
  *
  *
  * <pre>
- * An exception message that needs to be notified to front-end,
- * usually a <strong>simple</strong>, clear</strong> message, e.g:
- * <p>1. Username already exists</p>
- * <p>2. No permission, please contact the administrator</p>
+ * To notify the frontend of an exception message,
+ * it is usually a <strong> clear </strong> and <strong> concise </strong> message, e.g:
+ * <p> 1. The username already exists.</p>
+ * <p> 2. No permission, please contact the administrator.</p>
  * ...
  * </pre>
  */
@@ -46,15 +46,36 @@ public class ApiAlertException extends AbstractApiException {
     super(message, cause, ResponseCode.CODE_FAIL_ALERT);
   }
 
-  public static void throwIfNull(Object object, String errorMessage) {
+  public static void throwIfNull(Object object, String errorMsgFmt, Object... args) {
     if (Objects.isNull(object)) {
-      throw new ApiAlertException(errorMessage);
+      if (args == null || args.length < 1) {
+        throw new ApiAlertException(errorMsgFmt);
+      }
+      throw new ApiAlertException(String.format(errorMsgFmt, args));
+    }
+  }
+
+  public static void throwIfNotNull(Object object, String errorMsgFmt, Object... args) {
+    if (!Objects.isNull(object)) {
+      if (args == null || args.length < 1) {
+        throw new ApiAlertException(errorMsgFmt);
+      }
+      throw new ApiAlertException(String.format(errorMsgFmt, args));
     }
   }
 
   public static void throwIfFalse(boolean expression, String errorMessage) {
     if (!expression) {
       throw new ApiAlertException(errorMessage);
+    }
+  }
+
+  public static void throwIfTrue(boolean expression, String errorMsgFmt, Object... args) {
+    if (expression) {
+      if (args == null || args.length < 1) {
+        throw new ApiAlertException(errorMsgFmt);
+      }
+      throw new ApiAlertException(String.format(errorMsgFmt, args));
     }
   }
 }

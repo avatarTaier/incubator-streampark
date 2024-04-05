@@ -25,6 +25,7 @@ import com.p6spy.engine.spy.appender.MessageFormattingStrategy;
 
 import java.time.LocalDateTime;
 
+/** Specifies the log output format of SQL statements in the console */
 public class P6spySqlFormatConfig implements MessageFormattingStrategy {
 
   @Override
@@ -40,7 +41,7 @@ public class P6spySqlFormatConfig implements MessageFormattingStrategy {
     return StringUtils.isBlank(sql)
         ? ""
         : String.format(
-            "%s  | consume %d ms | SQL statement：\n %s;",
+            "%s  | consume %d ms | SQL statement：%n %s;",
             DateUtils.formatFullTime(LocalDateTime.now()),
             elapsed,
             sql.replaceAll("\\s+", StringUtils.SPACE));

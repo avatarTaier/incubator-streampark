@@ -22,7 +22,7 @@
 <script setup lang="ts" name="AppCreate">
   import { useGo } from '/@/hooks/web/usePage';
   import ProgramArgs from './components/ProgramArgs.vue';
-  import { Switch, Alert } from 'ant-design-vue';
+  import { Switch } from 'ant-design-vue';
   import { onMounted, reactive, ref, unref } from 'vue';
   import { PageWrapper } from '/@/components/Page';
   import { createAsyncComponent } from '/@/utils/factory/createAsyncComponent';
@@ -32,8 +32,7 @@
   import { useDrawer } from '/@/components/Drawer';
   import Mergely from './components/Mergely.vue';
   import { handleConfTemplate } from '/@/api/flink/config';
-  import UploadJobJar from './components/UploadJobJar.vue';
-  import { fetchAppConf, fetchCreate, fetchMain, fetchUpload } from '/@/api/flink/app/app';
+  import { fetchAppConf, fetchCreate } from '/@/api/flink/app';
   import options from './data/option';
   import { useCreateSchema } from './hooks/useCreateSchema';
   import { getAppConfType, handleSubmitParams } from './utils';
@@ -44,7 +43,7 @@
   import VariableReview from './components/VariableReview.vue';
   import PomTemplateTab from './components/PodTemplate/PomTemplateTab.vue';
   import UseSysHadoopConf from './components/UseSysHadoopConf.vue';
-  import { CreateParams } from '/@/api/flink/app/app.type';
+  import { CreateParams } from '/@/api/flink/app.type';
   import { decodeByBase64, encryptByBase64 } from '/@/utils/cipher';
   import {
     AppTypeEnum,
@@ -64,8 +63,6 @@
   const go = useGo();
   const flinkSql = ref();
   const dependencyRef = ref();
-  const uploadLoading = ref(false);
-  const uploadJar = ref('');
   const submitLoading = ref(false);
 
   const { t } = useI18n();
@@ -131,24 +128,6 @@
     }
   }
 
-  /* Custom job upload */
-  async function handleCustomJobRequest(data) {
-    const formData = new FormData();
-    formData.append('file', data.file);
-    try {
-      const path = await fetchUpload(formData);
-      uploadJar.value = data.file.name;
-      const res = await fetchMain({
-        jar: path,
-      });
-      uploadLoading.value = false;
-      setFieldsValue({ mainClass: res });
-    } catch (error) {
-      console.error(error);
-      uploadLoading.value = false;
-    }
-  }
-
   function handleEditConfClose() {
     const formValue = getFieldsValue();
     if (!formValue.configOverride) {
@@ -164,29 +143,52 @@
     const cluster =
       unref(flinkClusters).filter((c) => {
         if (flinkClusterId) {
-          return c.id == flinkClusterId && c.clusterState === ClusterStateEnum.STARTED;
+          return c.id == flinkClusterId && c.clusterState === ClusterStateEnum.RUNNING;
         }
       })[0] || null;
     if (cluster) {
       Object.assign(values, { flinkClusterId: cluster.id });
+      if (values.executionMode == ExecModeEnum.KUBERNETES_SESSION) {
+        Object.assign(values, { clusterId: cluster.clusterId });
+      }
     }
   }
 
   /* custom mode */
   async function handleSubmitCustomJob(values) {
     handleCluster(values);
+    // Trigger a pom confirmation operation.
+    await unref(dependencyRef)?.handleApplyPom();
+    // common params...
+    const dependency: { pom?: string; jar?: string } = {};
+    const dependencyRecords = unref(dependencyRef)?.dependencyRecords;
+    const uploadJars = unref(dependencyRef)?.uploadJars;
+    if (unref(dependencyRecords) && unref(dependencyRecords).length > 0) {
+      Object.assign(dependency, {
+        pom: unref(dependencyRecords),
+      });
+    }
+    if (uploadJars && unref(uploadJars).length > 0) {
+      Object.assign(dependency, {
+        jar: unref(uploadJars),
+      });
+    }
     const params = {
-      jobType: JobTypeEnum.JAR,
+      jobType: values.jobType,
       projectId: values.project || null,
       module: values.module || null,
+      dependency:
+        dependency.pom === undefined && dependency.jar === undefined
+          ? null
+          : JSON.stringify(dependency),
       appType: values.appType,
     };
     handleSubmitParams(params, values, k8sTemplate);
     // common params...
     const resourceFrom = values.resourceFrom;
     if (resourceFrom) {
-      if (resourceFrom === 'csv') {
-        params['resourceFrom'] = ResourceFromEnum.CICD;
+      if (resourceFrom == ResourceFromEnum.PROJECT) {
+        params['resourceFrom'] = ResourceFromEnum.PROJECT;
         //streampark flink
         if (values.appType == AppTypeEnum.STREAMPARK_FLINK) {
           const configVal = values.config;
@@ -208,7 +210,7 @@
         Object.assign(params, {
           resourceFrom: ResourceFromEnum.UPLOAD,
           appType: AppTypeEnum.APACHE_FLINK,
-          jar: unref(uploadJar),
+          jar: values.uploadJobJar,
           mainClass: values.mainClass,
         });
         handleCreateApp(params);
@@ -248,6 +250,7 @@
       appType: AppTypeEnum.STREAMPARK_FLINK,
       config,
       format: values.isSetConfig ? 1 : null,
+      teamResource: JSON.stringify(values.teamResource),
       dependency:
         dependency.pom === undefined && dependency.jar === undefined
           ? null
@@ -260,7 +263,7 @@
   async function handleAppCreate(formValue: Recordable) {
     try {
       submitLoading.value = true;
-      if (formValue.jobType === 'sql') {
+      if (formValue.jobType == JobTypeEnum.SQL) {
         if (formValue.flinkSql == null || formValue.flinkSql.trim() === '') {
           createMessage.warning(t('flink.app.editStreamPark.flinkSqlRequired'));
         } else {
@@ -270,11 +273,9 @@
             throw new Error(access);
           }
         }
-      }
-      if (formValue.jobType === 'customcode') {
-        handleSubmitCustomJob(formValue);
-      } else {
         handleSubmitSQL(formValue);
+      } else {
+        handleSubmitCustomJob(formValue);
       }
     } catch (error) {
       submitLoading.value = false;
@@ -331,23 +332,9 @@
         <SettingTwoTone
           v-if="model[field]"
           class="ml-10px"
-          theme="twoTone"
           two-tone-color="#4a9ff5"
           @click="handleSQLConf(true, model)"
         />
-      </template>
-      <template #uploadJobJar>
-        <UploadJobJar :custom-request="handleCustomJobRequest" v-model:loading="uploadLoading">
-          <template #uploadInfo>
-            <Alert v-if="uploadJar" class="uploadjar-box" type="info">
-              <template #message>
-                <span class="tag-dependency-pom">
-                  {{ uploadJar }}
-                </span>
-              </template>
-            </Alert>
-          </template>
-        </UploadJobJar>
       </template>
       <template #podTemplate>
         <PomTemplateTab
@@ -357,11 +344,13 @@
         />
       </template>
       <template #args="{ model }">
-        <ProgramArgs
-          v-model:value="model.args"
-          :suggestions="suggestions"
-          @preview="(value) => openReviewDrawer(true, { value, suggestions })"
-        />
+        <template v-if="model.args !== undefined">
+          <ProgramArgs
+            v-model:value="model.args"
+            :suggestions="suggestions"
+            @preview="(value) => openReviewDrawer(true, { value, suggestions })"
+          />
+        </template>
       </template>
       <template #useSysHadoopConf="{ model, field }">
         <UseSysHadoopConf v-model:hadoopConf="model[field]" />

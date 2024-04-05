@@ -16,45 +16,24 @@
  */
 package org.apache.streampark.common.util
 
-import java.io.{
-  BufferedInputStream,
-  File,
-  FileInputStream,
-  IOException,
-  PrintWriter,
-  StringWriter
-}
-import java.lang.{
-  Boolean => JavaBool,
-  Double => JavaDouble,
-  Float => JavaFloat,
-  Integer => JavaInt,
-  Long => JavaLong,
-  Short => JavaShort,
-  Byte => JavaByte
-}
-import java.net.URL
-import java.util.{Properties, UUID, jar, Collection => JavaCollection, Map => JavaMap}
-import java.util.jar.{JarFile, JarInputStream}
-import scala.collection.JavaConversions._
-import scala.util.{Failure, Success, Try}
 import org.apache.commons.lang3.StringUtils
 
-object Utils {
+import java.io._
+import java.net.{HttpURLConnection, URL}
+import java.time.{Duration, LocalDateTime}
+import java.util.{jar, Collection => JavaCollection, Map => JavaMap, Properties, UUID}
+import java.util.concurrent.locks.LockSupport
+import java.util.jar.{JarFile, JarInputStream}
+
+import scala.annotation.tailrec
+import scala.collection.convert.ImplicitConversions._
+import scala.util.{Failure, Success, Try}
+
+object Utils extends Logger {
 
   private[this] lazy val OS = System.getProperty("os.name").toLowerCase
 
-  def notNull(obj: Any, message: String): Unit = {
-    if (obj == null) {
-      throw new NullPointerException(message)
-    }
-  }
-
-  def notNull(obj: Any): Unit = {
-    notNull(obj, "this argument must not be null")
-  }
-
-  def notEmpty(elem: Any): Boolean = {
+  def isNotEmpty(elem: Any): Boolean = {
     elem match {
       case null => false
       case x if x.isInstanceOf[Array[_]] => elem.asInstanceOf[Array[_]].nonEmpty
@@ -67,24 +46,12 @@ object Utils {
     }
   }
 
-  def isEmpty(elem: Any): Boolean = !notEmpty(elem)
-
-  def required(expression: Boolean): Unit = {
-    if (!expression) {
-      throw new IllegalArgumentException
-    }
-  }
-
-  def required(expression: Boolean, errorMessage: Any): Unit = {
-    if (!expression) {
-      throw new IllegalArgumentException(s"requirement failed: ${errorMessage.toString}")
-    }
-  }
+  def isEmpty(elem: Any): Boolean = !isNotEmpty(elem)
 
   def uuid(): String = UUID.randomUUID().toString.replaceAll("-", "")
 
   @throws[IOException]
-  def checkJarFile(jar: URL): Unit = {
+  def requireCheckJarFile(jar: URL): Unit = {
     val jarFile: File = Try(new File(jar.toURI)) match {
       case Success(x) => x
       case Failure(_) => throw new IOException(s"JAR file path is invalid $jar")
@@ -96,65 +63,42 @@ object Utils {
       throw new IOException(s"JAR file can't be read '${jarFile.getAbsolutePath}'")
     }
     Try(new JarFile(jarFile)) match {
-      case Failure(e) => throw new IOException(s"Error while opening jar file '${jarFile.getAbsolutePath}'", e)
+      case Failure(e) =>
+        throw new IOException(s"Error while opening jar file '${jarFile.getAbsolutePath}'", e)
       case Success(x) => x.close()
     }
   }
 
   def getJarManifest(jarFile: File): jar.Manifest = {
-    checkJarFile(jarFile.toURL)
+    requireCheckJarFile(jarFile.toURL)
     new JarInputStream(new BufferedInputStream(new FileInputStream(jarFile))).getManifest
   }
 
-  def copyProperties(original: Properties, target: Properties): Unit = original.foreach(x => target.put(x._1, x._2))
+  def getJarManClass(jarFile: File): String = {
+    val manifest = getJarManifest(jarFile)
+    manifest.getMainAttributes.getValue("Main-Class") match {
+      case null => manifest.getMainAttributes.getValue("program-class")
+      case v => v
+    }
+  }
 
-  /**
-   * get os name
-   */
-  def getOsName: String = OS
+  def copyProperties(original: Properties, target: Properties): Unit =
+    original.foreach(x => target.put(x._1, x._2))
 
   def isLinux: Boolean = OS.indexOf("linux") >= 0
 
   def isWindows: Boolean = OS.indexOf("windows") >= 0
 
-  /**
-   * if any blank strings exist
-   */
+  /** if any blank strings exist */
   def isAnyBank(items: String*): Boolean = items == null || items.exists(StringUtils.isBlank)
 
-  /*
-   * Mimicking the try-with-resource syntax of Java-8+
-   */
-  def tryWithResource[R, T <: AutoCloseable](handle: T)(func: T => R)(implicit excFunc: Throwable => R = null): R = {
-    try {
-      func(handle)
-    } catch {
-      case e: Throwable if excFunc != null => excFunc(e)
-    } finally {
-      if (handle != null) {
-        handle.close()
-      }
-    }
-  }
-
-  def close(closeable: AutoCloseable*)(implicit func: Throwable => Unit = null): Unit = {
-    closeable.foreach(c => {
-      try {
-        if (c != null) {
-          c.close()
-        }
-      } catch {
-        case e: Throwable if func != null => func(e)
-      }
-    })
-  }
-
   /**
-   * calculate the percentage of num1 / num2, the result range from 0 to 100, with one small digit reserve.
+   * calculate the percentage of num1 / num2, the result range from 0 to 100, with one small digit
+   * reserve.
    */
   def calPercent(num1: Long, num2: Long): Double =
     if (num1 == 0 || num2 == 0) 0.0
-    else (num1.toDouble / num2.toDouble * 100).formatted("%.1f").toDouble
+    else "%.1f".format(num1.toDouble / num2.toDouble * 100).toDouble
 
   def hashCode(elements: Any*): Int = {
     if (elements == null) return 0
@@ -166,44 +110,62 @@ object Utils {
     result
   }
 
-  def stringifyException(e: Throwable): String = {
-    if (e == null) "(null)" else {
-      try {
-        val stm = new StringWriter
-        val wrt = new PrintWriter(stm)
-        e.printStackTrace(wrt)
-        wrt.close()
-        stm.toString
-      } catch {
-        case _: Throwable => e.getClass.getName + " (error while printing stack trace)"
-      }
+  def close(closeable: AutoCloseable*)(implicit func: Throwable => Unit = null): Unit = {
+    closeable.foreach(
+      c => {
+        try {
+          if (c != null) {
+            c match {
+              case flushable: Flushable => flushable.flush()
+              case _ =>
+            }
+            c.close()
+          }
+        } catch {
+          case e: Throwable if func != null => func(e)
+        }
+      })
+  }
+
+  @tailrec
+  def retry[R](retryCount: Int, interval: Duration = Duration.ofSeconds(5))(f: => R): Try[R] = {
+    require(retryCount >= 0)
+    Try(f) match {
+      case Success(result) => Success(result)
+      case Failure(e) if retryCount > 0 =>
+        logWarn(s"Retry failed, execution caused by: ", e)
+        logWarn(
+          s"$retryCount times retry remaining, the next attempt will be in ${interval.toMillis} ms")
+        LockSupport.parkNanos(interval.toNanos)
+        retry(retryCount - 1, interval)(f)
+      case Failure(e) => Failure(e)
     }
   }
 
-  implicit class StringCasts(v: String) {
-    def cast[T](classType: Class[_]): T = {
-      Utils.required(classType.isPrimitive, "target class must be a primitive type")
-      classType match {
-        case c if c == classOf[String] => v.asInstanceOf[T]
-        case c if c == classOf[Byte] => v.toByte.asInstanceOf[T]
-        case c if c == classOf[Int] => v.toInt.asInstanceOf[T]
-        case c if c == classOf[Long] => v.toLong.asInstanceOf[T]
-        case c if c == classOf[Float] => v.toFloat.asInstanceOf[T]
-        case c if c == classOf[Double] => v.toDouble.asInstanceOf[T]
-        case c if c == classOf[Short] => v.toShort.asInstanceOf[T]
-        case c if c == classOf[Boolean] => v.toBoolean.asInstanceOf[T]
-        case c if c == classOf[String] => v.asInstanceOf[T]
-        case c if c == classOf[JavaByte] => v.toByte.asInstanceOf[T]
-        case c if c == classOf[JavaInt] => JavaInt.valueOf(v).asInstanceOf[T]
-        case c if c == classOf[JavaLong] => JavaLong.valueOf(v).asInstanceOf[T]
-        case c if c == classOf[JavaFloat] => JavaFloat.valueOf(v).asInstanceOf[T]
-        case c if c == classOf[JavaDouble] => JavaDouble.valueOf(v).asInstanceOf[T]
-        case c if c == classOf[JavaShort] => JavaShort.valueOf(v).asInstanceOf[T]
-        case c if c == classOf[JavaBool] => JavaBool.valueOf(v).asInstanceOf[T]
-        case _ =>
-          throw new IllegalArgumentException(s"Unsupported type: $classType")
-      }
-    }
+  def checkHttpURL(urlString: String) = {
+    Try {
+      val url = new URL(urlString)
+      val connection = url.openConnection.asInstanceOf[HttpURLConnection]
+      connection.setRequestMethod("HEAD")
+      connection.getResponseCode == HttpURLConnection.HTTP_OK
+    }.getOrElse(false)
+  }
+
+  def printLogo(info: String): Unit = {
+    // scalastyle:off println
+    println("\n")
+    println("        _____ __                                             __       ")
+    println("       / ___// /_________  ____ _____ ___  ____  ____ ______/ /__     ")
+    println("       \\__ \\/ __/ ___/ _ \\/ __ `/ __ `__ \\/ __ \\  __ `/ ___/ //_/")
+    println("      ___/ / /_/ /  /  __/ /_/ / / / / / / /_/ / /_/ / /  / ,<        ")
+    println("     /____/\\__/_/   \\___/\\__,_/_/ /_/ /_/ ____/\\__,_/_/  /_/|_|   ")
+    println("                                       /_/                        \n\n")
+    println("    Version:  2.2.0-SNAPSHOT                                          ")
+    println("    WebSite:  https://streampark.apache.org                           ")
+    println("    GitHub :  https://github.com/apache/incubator-streampark                    ")
+    println(s"    Info   :  $info                                 ")
+    println(s"    Time   :  ${LocalDateTime.now}              \n\n")
+    // scalastyle:on println
   }
 
 }

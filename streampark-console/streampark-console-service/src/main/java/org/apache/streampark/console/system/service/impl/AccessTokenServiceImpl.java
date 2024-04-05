@@ -46,7 +46,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.TimeZone;
-import java.util.UUID;
 
 @Slf4j
 @Service
@@ -60,17 +59,14 @@ public class AccessTokenServiceImpl extends ServiceImpl<AccessTokenMapper, Acces
   public RestResponse generateToken(Long userId, String expireTime, String description) {
     User user = userService.getById(userId);
     if (Objects.isNull(user)) {
-      return RestResponse.success().put("code", 0).message("user not available");
+      return RestResponse.success().put(RestResponse.CODE_KEY, 0).message("user not available");
     }
 
-    if (StringUtils.isEmpty(expireTime)) {
+    if (StringUtils.isBlank(expireTime)) {
       expireTime = AccessToken.DEFAULT_EXPIRE_TIME;
     }
-
     Long ttl = DateUtils.getTime(expireTime, DateUtils.fullFormat(), TimeZone.getDefault());
-    String token =
-        WebUtils.encryptToken(
-            JWTUtil.sign(user.getUserId(), user.getUsername(), UUID.randomUUID().toString(), ttl));
+    String token = WebUtils.encryptToken(JWTUtil.sign(user.getUserId(), user.getUsername(), ttl));
     JWTToken jwtToken = new JWTToken(token, expireTime);
 
     AccessToken accessToken = new AccessToken();
@@ -78,7 +74,9 @@ public class AccessTokenServiceImpl extends ServiceImpl<AccessTokenMapper, Acces
     accessToken.setUserId(user.getUserId());
     accessToken.setDescription(description);
     accessToken.setExpireTime(DateUtils.stringToDate(jwtToken.getExpireAt()));
-    accessToken.setCreateTime(new Date());
+    Date date = new Date();
+    accessToken.setCreateTime(date);
+    accessToken.setModifyTime(date);
     accessToken.setStatus(AccessToken.STATUS_ENABLE);
 
     this.save(accessToken);
@@ -86,14 +84,9 @@ public class AccessTokenServiceImpl extends ServiceImpl<AccessTokenMapper, Acces
   }
 
   @Override
-  public boolean deleteToken(Long id) {
-    return this.removeById(id);
-  }
-
-  @Override
-  public IPage<AccessToken> findAccessTokens(AccessToken tokenParam, RestRequest request) {
-    Page<AccessToken> page = new MybatisPager<AccessToken>().getDefaultPage(request);
-    this.baseMapper.page(page, tokenParam);
+  public IPage<AccessToken> getPage(AccessToken tokenParam, RestRequest request) {
+    Page<AccessToken> page = MybatisPager.getPage(request);
+    this.baseMapper.selectPage(page, tokenParam);
     List<AccessToken> records = page.getRecords();
     page.setRecords(records);
     return page;
@@ -101,21 +94,21 @@ public class AccessTokenServiceImpl extends ServiceImpl<AccessTokenMapper, Acces
 
   @Override
   public boolean checkTokenEffective(Long userId, String token) {
-    AccessToken res = baseMapper.getByUserToken(userId, token);
+    AccessToken res = baseMapper.selectByUserToken(userId, token);
     return res != null && AccessToken.STATUS_ENABLE.equals(res.getFinalStatus());
   }
 
   @Override
   public RestResponse toggleToken(Long tokenId) {
-    AccessToken tokenInfo = baseMapper.getById(tokenId);
+    AccessToken tokenInfo = baseMapper.selectById(tokenId);
     if (Objects.isNull(tokenInfo)) {
-      return RestResponse.fail("accessToken could not be found!", ResponseCode.CODE_FAIL_ALERT);
+      return RestResponse.fail(ResponseCode.CODE_FAIL_ALERT, "accessToken could not be found!");
     }
 
     if (User.STATUS_LOCK.equals(tokenInfo.getUserStatus())) {
       return RestResponse.fail(
-          "user status is locked, could not operate this accessToken!",
-          ResponseCode.CODE_FAIL_ALERT);
+          ResponseCode.CODE_FAIL_ALERT,
+          "user status is locked, could not operate this accessToken!");
     }
 
     Integer status =
@@ -123,14 +116,12 @@ public class AccessTokenServiceImpl extends ServiceImpl<AccessTokenMapper, Acces
             ? AccessToken.STATUS_DISABLE
             : AccessToken.STATUS_ENABLE;
 
-    AccessToken updateObj = new AccessToken();
-    updateObj.setStatus(status);
-    updateObj.setId(tokenId);
-    return RestResponse.success(this.updateById(updateObj));
+    tokenInfo.setStatus(status);
+    return RestResponse.success(this.updateById(tokenInfo));
   }
 
   @Override
   public AccessToken getByUserId(Long userId) {
-    return baseMapper.getByUserId(userId);
+    return baseMapper.selectByUserId(userId);
   }
 }

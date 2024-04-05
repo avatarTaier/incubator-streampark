@@ -17,6 +17,9 @@
 
 package org.apache.streampark.console.core.service;
 
+import org.apache.streampark.console.core.bean.DockerConfig;
+import org.apache.streampark.console.core.bean.MavenConfig;
+import org.apache.streampark.console.core.bean.ResponseResult;
 import org.apache.streampark.console.core.bean.SenderEmail;
 import org.apache.streampark.console.core.entity.Setting;
 
@@ -25,16 +28,18 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/** System setting service */
 public interface SettingService extends IService<Setting> {
 
   Map<String, Setting> SETTINGS = new ConcurrentHashMap<>();
 
-  String KEY_MAVEN_SETTINGS = "streampark.maven.settings";
-  String KEY_MAVEN_REPOSITORY = "streampark.maven.central.repository";
-  String KEY_MAVEN_AUTH_USER = "streampark.maven.auth.user";
-  String KEY_MAVEN_AUTH_PASSWORD = "streampark.maven.auth.password";
-  String KEY_STREAMPARK_ADDRESS = "streampark.console.webapp.address";
+  // docker
+  String KEY_DOCKER_REGISTER_ADDRESS = "docker.register.address";
+  String KEY_DOCKER_REGISTER_USER = "docker.register.user";
+  String KEY_DOCKER_REGISTER_PASSWORD = "docker.register.password";
+  String KEY_DOCKER_REGISTER_NAMESPACE = "docker.register.namespace";
 
+  // alert.
   String KEY_ALERT_EMAIL_HOST = "alert.email.host";
   String KEY_ALERT_EMAIL_PORT = "alert.email.port";
   String KEY_ALERT_EMAIL_FROM = "alert.email.from";
@@ -42,37 +47,92 @@ public interface SettingService extends IService<Setting> {
   String KEY_ALERT_EMAIL_PASSWORD = "alert.email.password";
   String KEY_ALERT_EMAIL_SSL = "alert.email.ssl";
 
-  String KEY_DOCKER_REGISTER_ADDRESS = "docker.register.address";
-  String KEY_DOCKER_REGISTER_USER = "docker.register.user";
-  String KEY_DOCKER_REGISTER_PASSWORD = "docker.register.password";
-
-  String KEY_DOCKER_REGISTER_NAMESPACE = "docker.register.namespace";
+  String KEY_STREAMPARK_ADDRESS = "streampark.console.webapp.address";
 
   String KEY_INGRESS_MODE_DEFAULT = "ingress.mode.default";
 
+  /**
+   * Retrieves the value of the setting associated with the specified key.
+   *
+   * @param key the key of the setting to retrieve
+   * @return the value of the setting if found, null otherwise
+   */
   Setting get(String key);
 
+  /**
+   * Updates the specified Setting.
+   *
+   * @param setting the Setting object to update
+   * @return true if the update is successful, false otherwise
+   */
   boolean update(Setting setting);
 
+  /**
+   * Retrieves the Maven configuration settings.
+   *
+   * @return The MavenConfig object containing the Maven configuration settings.
+   */
+  MavenConfig getMavenConfig();
+
+  /**
+   * Retrieves the Docker configuration settings.
+   *
+   * @return The DockerConfig object representing the configuration for Docker.
+   */
+  DockerConfig getDockerConfig();
+
+  /**
+   * Retrieves the StreamPark address.
+   *
+   * @return a String representing the StreamPark address.
+   */
   String getStreamParkAddress();
 
-  String getMavenSettings();
+  /**
+   * Retrieves the default ingress mode.
+   *
+   * @return The default ingress mode.
+   */
+  String getIngressModeDefault();
 
-  String getMavenRepository();
+  /**
+   * Before updating the Docker settings, verify that the parameters are filled in correctly, We
+   * check whether it is correct or not by concatenating the given registration URL.
+   *
+   * @param dockerConfig Docker config to be checked
+   * @return Server response value
+   */
+  ResponseResult checkDocker(DockerConfig dockerConfig);
 
-  String getMavenAuthUser();
+  /**
+   * update docker config
+   *
+   * @param dockerConfig Docker config needs to be updated
+   * @return Whether the update operation was successful
+   */
+  boolean updateDocker(DockerConfig dockerConfig);
 
-  String getMavenAuthPassword();
-
+  /**
+   * Retrieves the senderEmail
+   *
+   * @return
+   */
   SenderEmail getSenderEmail();
 
-  String getDockerRegisterAddress();
+  /**
+   * Before updating the email settings, verify that the parameters are filled in correctly, We
+   * check whether it is correct or not by concatenating the given host.
+   *
+   * @param senderEmail email config to be checked
+   * @return Server response value
+   */
+  ResponseResult checkEmail(SenderEmail senderEmail);
 
-  String getDockerRegisterUser();
-
-  String getDockerRegisterPassword();
-
-  String getDockerRegisterNamespace();
-
-  String getIngressModeDefault();
+  /**
+   * update docker config
+   *
+   * @param senderEmail email config needs to be updated
+   * @return Whether the update operation was successful
+   */
+  boolean updateEmail(SenderEmail senderEmail);
 }

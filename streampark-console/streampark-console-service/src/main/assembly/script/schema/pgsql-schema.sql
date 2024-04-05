@@ -26,7 +26,6 @@ drop table if exists "public"."t_role";
 drop table if exists "public"."t_role_menu";
 drop table if exists "public"."t_menu";
 drop table if exists "public"."t_message";
-drop table if exists "public"."t_flink_tutorial";
 drop table if exists "public"."t_flink_sql";
 drop table if exists "public"."t_flink_savepoint";
 drop table if exists "public"."t_flink_project";
@@ -43,6 +42,7 @@ drop table if exists "public"."t_flink_log";
 drop table if exists "public"."t_team";
 drop table if exists "public"."t_variable";
 drop table if exists "public"."t_external_link";
+drop table if exists "public"."t_yarn_queue";
 
 -- ----------------------------
 -- drop sequence if exists
@@ -68,6 +68,7 @@ drop sequence if exists "public"."streampark_t_flink_log_id_seq";
 drop sequence if exists "public"."streampark_t_team_id_seq";
 drop sequence if exists "public"."streampark_t_variable_id_seq";
 drop sequence if exists "public"."streampark_t_external_link_id_seq";
+drop sequence if exists "public"."streampark_t_yarn_queue_id_seq";
 
 -- ----------------------------
 -- drop trigger if exists
@@ -92,10 +93,10 @@ create table "public"."t_access_token" (
   "user_id" int8,
   "token" varchar(1024) collate "pg_catalog"."default",
   "expire_time" timestamp(6),
-  "description" varchar(512) collate "pg_catalog"."default",
+  "description" varchar(255) collate "pg_catalog"."default",
   "status" int2,
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone),
-  "modify_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone)
+  "create_time" timestamp(6),
+  "modify_time" timestamp(6)
 );
 comment on column "public"."t_access_token"."id" is 'key';
 comment on column "public"."t_access_token"."token" is 'token';
@@ -124,8 +125,8 @@ create table "public"."t_alert_config" (
   "we_com_params" varchar(255) collate "pg_catalog"."default",
   "http_callback_params" text collate "pg_catalog"."default",
   "lark_params" text collate "pg_catalog"."default",
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone),
-  "modify_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone)
+  "create_time" timestamp(6),
+  "modify_time" timestamp(6)
 )
 ;
 comment on column "public"."t_alert_config"."alert_name" is 'alert name';
@@ -156,9 +157,9 @@ create table "public"."t_app_backup" (
   "sql_id" int8,
   "config_id" int8,
   "version" int4,
-  "path" varchar(255) collate "pg_catalog"."default",
+  "path" varchar(128) collate "pg_catalog"."default",
   "description" varchar(255) collate "pg_catalog"."default",
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone)
+  "create_time" timestamp(6)
 )
 ;
 alter table "public"."t_app_backup" add constraint "t_app_backup_pkey" primary key ("id");
@@ -177,7 +178,7 @@ create table "public"."t_app_build_pipe" (
   "steps_status_ts" text collate "pg_catalog"."default",
   "error" text collate "pg_catalog"."default",
   "build_result" text collate "pg_catalog"."default",
-  "modify_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone)
+  "modify_time" timestamp(6)
 )
 ;
 alter table "public"."t_app_build_pipe" add constraint "t_app_build_pipe_pkey" primary key ("app_id");
@@ -204,16 +205,17 @@ create table "public"."t_flink_app" (
   "options" text collate "pg_catalog"."default",
   "hot_params" text collate "pg_catalog"."default",
   "user_id" int8,
-  "app_id" varchar(255) collate "pg_catalog"."default",
+  "app_id" varchar(64) collate "pg_catalog"."default",
   "app_type" int2,
   "duration" int8,
   "job_id" varchar(64) collate "pg_catalog"."default",
   "job_manager_url" varchar(255) collate "pg_catalog"."default",
   "version_id" int8,
-  "cluster_id" varchar(255) collate "pg_catalog"."default",
-  "k8s_namespace" varchar(255) collate "pg_catalog"."default",
-  "flink_image" varchar(255) collate "pg_catalog"."default",
-  "state" varchar(50) collate "pg_catalog"."default",
+  "cluster_id" varchar(45) collate "pg_catalog"."default",
+  "k8s_name" varchar(63) collate "pg_catalog"."default",
+  "k8s_namespace" varchar(63) collate "pg_catalog"."default",
+  "flink_image" varchar(128) collate "pg_catalog"."default",
+  "state" int2,
   "restart_size" int4,
   "restart_count" int4,
   "cp_threshold" int4,
@@ -232,8 +234,8 @@ create table "public"."t_flink_app" (
   "available_slot" int4,
   "option_state" int2,
   "tracking" int2,
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone),
-  "modify_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone),
+  "create_time" timestamp(6),
+  "modify_time" timestamp(6),
   "option_time" timestamp(6),
   "release" int2 default 1,
   "build" boolean default true,
@@ -247,15 +249,14 @@ create table "public"."t_flink_app" (
   "flink_cluster_id" int8,
   "ingress_template" text collate "pg_catalog"."default",
   "default_mode_ingress" text collate "pg_catalog"."default",
-  "tags" varchar(500) collate "pg_catalog"."default"
+  "tags" varchar(500) collate "pg_catalog"."default",
+  "probing" boolean default false,
+  "hadoop_user" varchar(63) collate "pg_catalog"."default"
 )
 ;
 alter table "public"."t_flink_app" add constraint "t_flink_app_pkey" primary key ("id");
 create index "inx_job_type" on "public"."t_flink_app" using btree (
   "job_type" "pg_catalog"."int2_ops" asc nulls last
-);
-create index "inx_state" on "public"."t_flink_app" using btree (
-  "state" collate "pg_catalog"."default" "pg_catalog"."text_ops" asc nulls last
 );
 create index "inx_track" on "public"."t_flink_app" using btree (
   "tracking" "pg_catalog"."int2_ops" asc nulls last
@@ -272,18 +273,19 @@ create sequence "public"."streampark_t_flink_cluster_id_seq"
 
 create table "public"."t_flink_cluster" (
   "id" int8 not null default nextval('streampark_t_flink_cluster_id_seq'::regclass),
-  "address" varchar(255) collate "pg_catalog"."default",
-  "cluster_id" varchar(255) collate "pg_catalog"."default",
-  "cluster_name" varchar(255) collate "pg_catalog"."default" not null,
+  "address" varchar(150) collate "pg_catalog"."default",
+  "job_manager_url" varchar(150) collate "pg_catalog"."default",
+  "cluster_id" varchar(45) collate "pg_catalog"."default",
+  "cluster_name" varchar(128) collate "pg_catalog"."default" not null,
   "options" text collate "pg_catalog"."default",
-  "yarn_queue" varchar(100) collate "pg_catalog"."default",
+  "yarn_queue" varchar(128) collate "pg_catalog"."default",
   "execution_mode" int2 not null default 1,
   "version_id" int8 not null,
-  "k8s_namespace" varchar(255) collate "pg_catalog"."default",
-  "service_account" varchar(50) collate "pg_catalog"."default",
+  "k8s_namespace" varchar(63) collate "pg_catalog"."default",
+  "service_account" varchar(64) collate "pg_catalog"."default",
   "description" varchar(255) collate "pg_catalog"."default",
   "user_id" int8,
-  "flink_image" varchar(255) collate "pg_catalog"."default",
+  "flink_image" varchar(128) collate "pg_catalog"."default",
   "dynamic_properties" text collate "pg_catalog"."default",
   "k8s_rest_exposed_type" int2 default 2,
   "k8s_hadoop_integration" boolean default false,
@@ -291,10 +293,14 @@ create table "public"."t_flink_cluster" (
   "resolve_order" int4,
   "exception" text collate "pg_catalog"."default",
   "cluster_state" int2 default 0,
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone)
+  "create_time" timestamp(6),
+  "start_time" timestamp(6),
+  "end_time" timestamp(6),
+  "alert_id" int8
 )
 ;
-comment on column "public"."t_flink_cluster"."address" is 'url address of jobmanager';
+comment on column "public"."t_flink_cluster"."address" is 'url address of cluster';
+comment on column "public"."t_flink_cluster"."job_manager_url" is 'url address of jobmanager';
 comment on column "public"."t_flink_cluster"."cluster_id" is 'clusterid of session mode(yarn-session:application-id,k8s-session:cluster-id)';
 comment on column "public"."t_flink_cluster"."cluster_name" is 'cluster name';
 comment on column "public"."t_flink_cluster"."options" is 'parameter collection json form';
@@ -309,6 +315,9 @@ comment on column "public"."t_flink_cluster"."k8s_rest_exposed_type" is 'k8s exp
 comment on column "public"."t_flink_cluster"."k8s_conf" is 'the path where the k 8 s configuration file is located';
 comment on column "public"."t_flink_cluster"."exception" is 'exception information';
 comment on column "public"."t_flink_cluster"."cluster_state" is 'cluster status (0: create not started, 1: started, 2: stopped)';
+comment on column "public"."t_flink_cluster"."start_time" is 'cluster start time';
+comment on column "public"."t_flink_cluster"."end_time" is 'cluster end time';
+comment on column "public"."t_flink_cluster"."alert_id" is 'alert id';
 alter table "public"."t_flink_cluster" add constraint "t_flink_cluster_pkey" primary key ("id", "cluster_name");
 create index "id" on "public"."t_flink_cluster" using btree (
   "cluster_id" collate "pg_catalog"."default" "pg_catalog"."text_ops" asc nulls last,
@@ -330,7 +339,7 @@ create table "public"."t_flink_config" (
   "version" int4 not null,
   "latest" boolean not null default false,
   "content" text collate "pg_catalog"."default" not null,
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone)
+  "create_time" timestamp(6)
 )
 ;
 alter table "public"."t_flink_config" add constraint "t_flink_config_pkey" primary key ("id");
@@ -347,7 +356,7 @@ create table "public"."t_flink_effective" (
   "app_id" int8 not null,
   "target_type" int2 not null,
   "target_id" int8 not null,
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone)
+  "create_time" timestamp(6)
 )
 ;
 comment on column "public"."t_flink_effective"."target_type" is '1) config 2) flink sql';
@@ -369,12 +378,12 @@ create table "public"."t_flink_env" (
   "id" int8 not null default nextval('streampark_t_flink_env_id_seq'::regclass),
   "flink_name" varchar(128) collate "pg_catalog"."default" not null,
   "flink_home" varchar(255) collate "pg_catalog"."default" not null,
-  "version" varchar(50) collate "pg_catalog"."default" not null,
-  "scala_version" varchar(50) collate "pg_catalog"."default" not null,
+  "version" varchar(64) collate "pg_catalog"."default" not null,
+  "scala_version" varchar(64) collate "pg_catalog"."default" not null,
   "flink_conf" text collate "pg_catalog"."default" not null,
   "is_default" boolean not null default false,
   "description" varchar(255) collate "pg_catalog"."default",
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone)
+  "create_time" timestamp(6)
 )
 ;
 comment on column "public"."t_flink_env"."id" is 'id';
@@ -401,11 +410,12 @@ create sequence "public"."streampark_t_flink_log_id_seq"
 create table "public"."t_flink_log" (
   "id" int8 not null default nextval('streampark_t_flink_log_id_seq'::regclass),
   "app_id" int8,
-  "yarn_app_id" varchar(50) collate "pg_catalog"."default",
+  "yarn_app_id" varchar(64) collate "pg_catalog"."default",
   "job_manager_url" varchar(255) collate "pg_catalog"."default",
-  "success" int2,
+  "success" boolean,
   "exception" text collate "pg_catalog"."default",
-  "option_time" timestamp(6)
+  "option_time" timestamp(6),
+  "option_name" int2
 )
 ;
 alter table "public"."t_flink_log" add constraint "t_flink_log_pkey" primary key ("id");
@@ -421,12 +431,12 @@ create table "public"."t_flink_project" (
   "id" int8 not null default nextval('streampark_t_flink_project_id_seq'::regclass),
   "team_id" int8,
   "name" varchar(255) collate "pg_catalog"."default",
-  "git_credential" int2,
-  "url" varchar(1000) collate "pg_catalog"."default",
-  "branches" varchar(1000) collate "pg_catalog"."default",
-  "user_name" varchar(255) collate "pg_catalog"."default",
-  "password" varchar(255) collate "pg_catalog"."default",
-  "prvkey_path" varchar(255) collate "pg_catalog"."default",
+  "url" varchar(255) collate "pg_catalog"."default",
+  "branches" varchar(64) collate "pg_catalog"."default",
+  "user_name" varchar(64) collate "pg_catalog"."default",
+  "password" varchar(512) collate "pg_catalog"."default",
+  "prvkey_path" varchar(128) collate "pg_catalog"."default",
+  "salt" varchar(26) collate "pg_catalog"."default",
   "pom" varchar(255) collate "pg_catalog"."default",
   "build_args" varchar(255) collate "pg_catalog"."default",
   "type" int2,
@@ -434,8 +444,8 @@ create table "public"."t_flink_project" (
   "last_build" timestamp(6),
   "description" varchar(255) collate "pg_catalog"."default",
   "build_state" int2 default -1,
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone),
-  "modify_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone)
+  "create_time" timestamp(6),
+  "modify_time" timestamp(6)
 )
 ;
 alter table "public"."t_flink_project" add constraint "t_flink_project_pkey" primary key ("id");
@@ -455,10 +465,10 @@ create table "public"."t_flink_savepoint" (
   "app_id" int8 not null,
   "chk_id" int8,
   "type" int2,
-  "path" varchar(1024) collate "pg_catalog"."default",
+  "path" varchar(255) collate "pg_catalog"."default",
   "latest" boolean not null default true,
   "trigger_time" timestamp(6),
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone)
+  "create_time" timestamp(6)
 )
 ;
 alter table "public"."t_flink_savepoint" add constraint "t_flink_savepoint_pkey" primary key ("id");
@@ -474,28 +484,14 @@ create table "public"."t_flink_sql" (
   "id" int8 not null default nextval('streampark_t_flink_sql_id_seq'::regclass),
   "app_id" int8,
   "sql" text collate "pg_catalog"."default",
+  "team_resource" varchar(64) collate "pg_catalog"."default",
   "dependency" text collate "pg_catalog"."default",
   "version" int4,
   "candidate" int2 default 1 not null,
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone)
+  "create_time" timestamp(6)
 )
 ;
 alter table "public"."t_flink_sql" add constraint "t_flink_sql_pkey" primary key ("id");
-
-
--- ----------------------------
--- table structure for t_flink_tutorial
--- ----------------------------
-
-create table "public"."t_flink_tutorial" (
-  "id" int4 not null,
-  "type" int2,
-  "name" varchar(255) collate "pg_catalog"."default",
-  "content" text collate "pg_catalog"."default",
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone)
-)
-;
-alter table "public"."t_flink_tutorial" add constraint "t_flink_tutorial_pkey" primary key ("id");
 
 
 -- ----------------------------
@@ -507,16 +503,16 @@ create sequence "public"."streampark_t_menu_id_seq"
 create table "public"."t_menu" (
   "menu_id" int8 not null default nextval('streampark_t_menu_id_seq'::regclass),
   "parent_id" int8 not null,
-  "menu_name" varchar(50) collate "pg_catalog"."default" not null,
-  "path" varchar(255) collate "pg_catalog"."default",
-  "component" varchar(255) collate "pg_catalog"."default",
-  "perms" varchar(50) collate "pg_catalog"."default",
-  "icon" varchar(50) collate "pg_catalog"."default",
+  "menu_name" varchar(64) collate "pg_catalog"."default" not null,
+  "path" varchar(64) collate "pg_catalog"."default",
+  "component" varchar(64) collate "pg_catalog"."default",
+  "perms" varchar(64) collate "pg_catalog"."default",
+  "icon" varchar(64) collate "pg_catalog"."default",
   "type" int2,
   "display" boolean not null default true,
   "order_num" float8,
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone),
-  "modify_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone)
+  "create_time" timestamp(6),
+  "modify_time" timestamp(6)
 )
 ;
 comment on column "public"."t_menu"."menu_id" is 'menu button id';
@@ -548,7 +544,7 @@ create table "public"."t_message" (
   "title" varchar(255) collate "pg_catalog"."default",
   "context" text collate "pg_catalog"."default",
   "is_read" boolean default false,
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone)
+  "create_time" timestamp(6)
 )
 ;
 alter table "public"."t_message" add constraint "t_message_pkey" primary key ("id");
@@ -566,16 +562,17 @@ create sequence "public"."streampark_t_team_id_seq"
 
 create table "public"."t_team" (
   "id" int8 not null default nextval('streampark_t_team_id_seq'::regclass),
-  "team_name" varchar(50) collate "pg_catalog"."default" not null,
+  "team_name" varchar(64) collate "pg_catalog"."default" not null,
   "description" varchar(255) collate "pg_catalog"."default" default null,
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone),
-  "modify_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone)
+  "create_time" timestamp(6),
+  "modify_time" timestamp(6)
 )
 ;
 comment on column "public"."t_team"."id" is 'team id';
 comment on column "public"."t_team"."team_name" is 'team name';
 comment on column "public"."t_team"."create_time" is 'creation time';
 comment on column "public"."t_team"."modify_time" is 'modify time';
+alter table "public"."t_team" add constraint "t_team_pkey" primary key ("id");
 create index "un_team_name" on "public"."t_team" using btree (
   "team_name" collate "pg_catalog"."default" "pg_catalog"."text_ops" asc nulls last
 );
@@ -588,14 +585,14 @@ create sequence "public"."streampark_t_variable_id_seq"
 
 create table "public"."t_variable" (
   "id" int8 not null default nextval('streampark_t_variable_id_seq'::regclass),
-  "variable_code" varchar(100) collate "pg_catalog"."default" not null,
+  "variable_code" varchar(128) collate "pg_catalog"."default" not null,
   "variable_value" text collate "pg_catalog"."default" not null,
   "description" text collate "pg_catalog"."default" default null,
   "creator_id" int8  not null,
   "team_id" int8  not null,
   "desensitization" boolean not null default false,
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone),
-  "modify_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone)
+  "create_time" timestamp(6),
+  "modify_time" timestamp(6)
 )
 ;
 comment on column "public"."t_variable"."id" is 'variable id';
@@ -614,6 +611,46 @@ create index "un_team_vcode_inx" on "public"."t_variable" using btree (
   "variable_code" collate "pg_catalog"."default" "pg_catalog"."text_ops" asc nulls last
 );
 
+-- ----------------------------
+-- Table of t_resource
+-- ----------------------------
+create sequence "public"."streampark_t_resource_id_seq"
+    increment 1 start 10000 cache 1 minvalue 10000 maxvalue 9223372036854775807;
+
+create table "public"."t_resource" (
+                                       "id" int8 not null default nextval('streampark_t_resource_id_seq'::regclass),
+                                       "resource_name" varchar(128) collate "pg_catalog"."default" not null,
+                                       "resource_type" int4,
+                                       "resource_path" varchar(255) default null,
+                                       "resource" text collate "pg_catalog"."default",
+                                       "engine_type" int4,
+                                       "main_class" varchar(255) collate "pg_catalog"."default",
+                                       "description" text collate "pg_catalog"."default" default null,
+                                       "creator_id" int8  not null,
+                                       "connector_required_options" text default null,
+                                       "connector_optional_options" text default null,
+                                       "team_id" int8  not null,
+                                       "create_time" timestamp(6),
+                                       "modify_time" timestamp(6)
+)
+;
+comment on column "public"."t_resource"."id" is 'Resource id';
+comment on column "public"."t_resource"."resource_name" is 'Resource name';
+comment on column "public"."t_resource"."resource_type" is '0:app 1:common 2:connector 3:format 4:udf';
+comment on column "public"."t_resource"."resource" is 'resource content, including jars and poms';
+comment on column "public"."t_resource"."engine_type" is 'compute engine type, 0:apache flink 1:apache spark';
+comment on column "public"."t_resource"."main_class" is 'The program main class';
+comment on column "public"."t_resource"."description" is 'More detailed description of resource';
+comment on column "public"."t_resource"."creator_id" is 'user id of creator';
+comment on column "public"."t_resource"."team_id" is 'team id';
+comment on column "public"."t_resource"."create_time" is 'creation time';
+comment on column "public"."t_resource"."modify_time" is 'modify time';
+
+alter table "public"."t_resource" add constraint "t_resource_pkey" primary key ("id");
+create index "un_team_dname_inx" on "public"."t_resource" using btree (
+    "team_id" "pg_catalog"."int8_ops" asc nulls last,
+    "resource_name" collate "pg_catalog"."default" "pg_catalog"."text_ops" asc nulls last
+    );
 
 -- ----------------------------
 -- table structure for t_role
@@ -623,19 +660,17 @@ create sequence "public"."streampark_t_role_id_seq"
 
 create table "public"."t_role" (
   "role_id" int8 not null default nextval('streampark_t_role_id_seq'::regclass),
-  "role_name" varchar(50) collate "pg_catalog"."default" not null,
-  "remark" varchar(100) collate "pg_catalog"."default",
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone),
-  "modify_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone),
-  "role_code" varchar(255) collate "pg_catalog"."default"
+  "role_name" varchar(64) collate "pg_catalog"."default" not null,
+  "create_time" timestamp(6),
+  "modify_time" timestamp(6),
+  "description" varchar(255) collate "pg_catalog"."default"
 )
 ;
 comment on column "public"."t_role"."role_id" is 'role id';
 comment on column "public"."t_role"."role_name" is 'role name';
-comment on column "public"."t_role"."remark" is 'role description';
+comment on column "public"."t_role"."description" is 'role description';
 comment on column "public"."t_role"."create_time" is 'creation time';
 comment on column "public"."t_role"."modify_time" is 'modify time';
-comment on column "public"."t_role"."role_code" is 'role code';
 alter table "public"."t_role" add constraint "t_role_pkey" primary key ("role_id");
 
 
@@ -663,7 +698,7 @@ create index "un_role_menu_inx" on "public"."t_role_menu" using btree (
 -- ----------------------------
 create table "public"."t_setting" (
   "order_num" int4,
-  "setting_key" varchar(50) collate "pg_catalog"."default" not null,
+  "setting_key" varchar(64) collate "pg_catalog"."default" not null,
   "setting_value" text collate "pg_catalog"."default",
   "setting_name" varchar(255) collate "pg_catalog"."default",
   "description" varchar(255) collate "pg_catalog"."default",
@@ -681,20 +716,21 @@ create sequence "public"."streampark_t_user_id_seq"
 
 create table "public"."t_user" (
   "user_id" int8 not null default nextval('streampark_t_user_id_seq'::regclass),
-  "username" varchar(255) collate "pg_catalog"."default" not null,
-  "nick_name" varchar(50) collate "pg_catalog"."default" not null,
-  "salt" varchar(255) collate "pg_catalog"."default",
-  "password" varchar(128) collate "pg_catalog"."default" not null,
-  "email" varchar(128) collate "pg_catalog"."default",
+  "username" varchar(64) collate "pg_catalog"."default" not null,
+  "nick_name" varchar(64) collate "pg_catalog"."default" not null,
+  "salt" varchar(26) collate "pg_catalog"."default",
+  "password" varchar(64) collate "pg_catalog"."default",
+  "email" varchar(64) collate "pg_catalog"."default",
   "user_type" int4,
+  "login_type" int2 default 0,
   "last_team_id" int8,
   "status" int2,
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone),
-  "modify_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone),
+  "create_time" timestamp(6),
+  "modify_time" timestamp(6),
   "last_login_time" timestamp(6),
   "sex" char(1) collate "pg_catalog"."default",
-  "avatar" varchar(100) collate "pg_catalog"."default",
-  "description" varchar(100) collate "pg_catalog"."default"
+  "avatar" varchar(128) collate "pg_catalog"."default",
+  "description" varchar(255) collate "pg_catalog"."default"
 )
 ;
 comment on column "public"."t_user"."user_id" is 'user id';
@@ -704,6 +740,7 @@ comment on column "public"."t_user"."salt" is 'salt';
 comment on column "public"."t_user"."password" is 'password';
 comment on column "public"."t_user"."email" is 'email';
 comment on column "public"."t_user"."user_type" is 'user type 1:admin 2:user';
+comment on column "public"."t_user"."login_type" is 'login type 0:password 1:ldap 2:sso';
 comment on column "public"."t_user"."last_team_id" is 'last team id';
 comment on column "public"."t_user"."status" is 'status 0:locked 1:active';
 comment on column "public"."t_user"."create_time" is 'creation time';
@@ -729,8 +766,8 @@ create table "public"."t_member" (
   "team_id" int8,
   "user_id" int8,
   "role_id" int8,
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone),
-  "modify_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone)
+  "create_time" timestamp(6),
+  "modify_time" timestamp(6)
 )
 ;
 comment on column "public"."t_member"."team_id" is 'team id';
@@ -752,14 +789,40 @@ create sequence "public"."streampark_t_external_link_id_seq"
 
 create table "public"."t_external_link" (
   "id" int8 not null default nextval('streampark_t_external_link_id_seq'::regclass),
-  "badge_label" varchar(100) collate "pg_catalog"."default",
-  "badge_name" varchar(100) collate "pg_catalog"."default",
-  "badge_color" varchar(100) collate "pg_catalog"."default",
-  "link_url" varchar(1000) collate "pg_catalog"."default",
-  "create_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone),
-  "modify_time" timestamp(6) not null default timezone('UTC-8'::text, (now())::timestamp(0) without time zone))
+  "badge_label" varchar(64) collate "pg_catalog"."default",
+  "badge_name" varchar(64) collate "pg_catalog"."default",
+  "badge_color" varchar(64) collate "pg_catalog"."default",
+  "link_url" varchar(255) collate "pg_catalog"."default",
+  "create_time" timestamp(6),
+  "modify_time" timestamp(6))
 ;
 alter table "public"."t_external_link" add constraint "t_external_link_pkey" primary key ("id");
+
+
+-- ----------------------------
+-- table structure for t_yarn_queue
+-- ----------------------------
+create sequence "public"."streampark_t_yarn_queue_id_seq"
+    increment 1 start 10000 cache 1 minvalue 10000 maxvalue 9223372036854775807;
+
+create table "public"."t_yarn_queue" (
+  "id" int8 not null default nextval('streampark_t_yarn_queue_id_seq'::regclass),
+  "team_id" int8 not null,
+  "queue_label" varchar(128) not null collate "pg_catalog"."default",
+  "description" varchar(255) collate "pg_catalog"."default",
+  "create_time" timestamp(6),
+  "modify_time" timestamp(6)
+)
+;
+comment on column "public"."t_yarn_queue"."id" is 'queue id';
+comment on column "public"."t_yarn_queue"."team_id" is 'team id';
+comment on column "public"."t_yarn_queue"."queue_label" is 'queue label expression';
+comment on column "public"."t_yarn_queue"."description" is 'description of the queue';
+comment on column "public"."t_yarn_queue"."create_time" is 'create time';
+comment on column "public"."t_yarn_queue"."modify_time" is 'modify time';
+
+alter table "public"."t_yarn_queue" add constraint "t_yarn_queue_pkey" primary key ("id");
+alter table "public"."t_yarn_queue" add constraint "unique_team_id_queue_label" unique("team_id", "queue_label");
 
 
 -- -----------------------------------------

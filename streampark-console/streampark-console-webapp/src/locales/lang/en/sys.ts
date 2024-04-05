@@ -104,9 +104,10 @@ export default {
     rememberMe: 'Remember me',
     forgetPassword: 'Forget Password?',
     otherSignIn: 'Sign in with',
+    ssoSignIn: 'Sign in with SSO',
 
-    ldapTip: 'Sign in with LDAP',
-    passwordTip: 'Sign in with LDAP',
+    ldapTip: 'Sign in by LDAP',
+    passwordTip: 'Sign in by password',
 
     // notify
     loginSuccessTitle: 'Login successful',
@@ -124,6 +125,7 @@ export default {
     diffPwd: 'The two passwords are inconsistent',
     userName: 'Username',
     password: 'Password',
+    selectTeam: 'Please select a team',
     oldPassword: 'Old password',
     newPassword: 'New password',
     confirmPassword: 'Confirm password',

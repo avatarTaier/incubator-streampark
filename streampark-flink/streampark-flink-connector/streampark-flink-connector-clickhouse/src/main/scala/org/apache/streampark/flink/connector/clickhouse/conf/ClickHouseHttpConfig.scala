@@ -17,13 +17,13 @@
 
 package org.apache.streampark.flink.connector.clickhouse.conf
 
+import org.apache.streampark.flink.connector.conf.ThresholdConf
+
+import org.apache.streampark.common.Constant
 import java.util.{Base64, Properties}
 import java.util.concurrent.ThreadLocalRandom
 
-import scala.collection.JavaConversions._
-
-import org.apache.streampark.common.conf.ConfigConst
-import org.apache.streampark.flink.connector.conf.ThresholdConf
+import scala.collection.convert.ImplicitConversions._
 
 /**
  * Flink sink for Clickhouse database. Powered by Async Http Client.
@@ -34,9 +34,11 @@ import org.apache.streampark.flink.connector.conf.ThresholdConf
  */
 //---------------------------------------------------------------------------------------
 
-class ClickHouseHttpConfig(parameters: Properties) extends ThresholdConf(ClickHouseSinkConfigOption.CLICKHOUSE_SINK_PREFIX, parameters) {
+class ClickHouseHttpConfig(parameters: Properties)
+  extends ThresholdConf(ClickHouseSinkConfigOption.CLICKHOUSE_SINK_PREFIX, parameters) {
 
-  @transient val sinkOption: ClickHouseSinkConfigOption = ClickHouseSinkConfigOption(properties = parameters)
+  @transient val sinkOption: ClickHouseSinkConfigOption =
+    ClickHouseSinkConfigOption(properties = parameters)
 
   val user: String = sinkOption.user.get()
 
@@ -67,7 +69,7 @@ class ClickHouseHttpConfig(parameters: Properties) extends ThresholdConf(ClickHo
 
   override def toString: String = {
     s"""
-       |{ user: $user, password: ${ConfigConst.DEFAULT_DATAMASK_STRING}, hosts: ${hosts.mkString(",")} }
+       |{ user: $user, password: ${Constant.DEFAULT_DATAMASK_STRING}, hosts: ${hosts.mkString(",")} }
        |""".stripMargin
   }
 }

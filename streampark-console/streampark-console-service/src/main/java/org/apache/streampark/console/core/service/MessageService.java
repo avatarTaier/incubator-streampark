@@ -19,14 +19,28 @@ package org.apache.streampark.console.core.service;
 
 import org.apache.streampark.console.base.domain.RestRequest;
 import org.apache.streampark.console.core.entity.Message;
-import org.apache.streampark.console.core.enums.NoticeType;
+import org.apache.streampark.console.core.enums.NoticeTypeEnum;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
 
+/** Message push service */
 public interface MessageService extends IService<Message> {
 
+  /**
+   * push message to user
+   *
+   * @param message Message
+   */
   void push(Message message);
 
-  IPage<Message> getUnRead(NoticeType noticeType, RestRequest request);
+  /**
+   * Retrieves a page of {@link Message} objects based on the provided parameters.
+   *
+   * @param noticeTypeEnum request request The {@link NoticeTypeEnum} object used for pagination and
+   *     sorting.
+   * @param request request request The {@link RestRequest} object used for pagination and sorting.
+   * @return An {@link IPage} containing the retrieved {@link Message} objects.
+   */
+  IPage<Message> getUnReadPage(NoticeTypeEnum noticeTypeEnum, RestRequest request);
 }

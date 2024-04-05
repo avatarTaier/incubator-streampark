@@ -17,11 +17,12 @@
 
 package org.apache.streampark.console.system.security.impl;
 
+import org.apache.streampark.console.base.exception.ApiAlertException;
 import org.apache.streampark.console.base.util.ShaHashUtils;
-import org.apache.streampark.console.core.enums.UserType;
+import org.apache.streampark.console.core.enums.LoginTypeEnum;
+import org.apache.streampark.console.core.enums.UserTypeEnum;
 import org.apache.streampark.console.system.entity.User;
 import org.apache.streampark.console.system.security.Authenticator;
-import org.apache.streampark.console.system.security.impl.ldap.LdapService;
 import org.apache.streampark.console.system.service.UserService;
 
 import org.apache.commons.lang3.StringUtils;
@@ -37,38 +38,91 @@ public class AuthenticatorImpl implements Authenticator {
   @Autowired private LdapService ldapService;
 
   @Override
-  public User authenticate(String username, String password) {
-    User user = usersService.findByName(username);
-    if (user == null) {
-      return null;
+  public User authenticate(String username, String password, String loginType) throws Exception {
+    LoginTypeEnum loginTypeEnum = LoginTypeEnum.of(loginType);
+
+    ApiAlertException.throwIfNull(
+        loginTypeEnum, String.format("the login type [%s] is not supported.", loginType));
+
+    switch (loginTypeEnum) {
+      case PASSWORD:
+        return passwordAuthenticate(username, password);
+      case LDAP:
+        return ldapAuthenticate(username, password);
+      case SSO:
+        return ssoAuthenticate(username);
+      default:
+        throw new ApiAlertException(
+            String.format("the login type [%s] is not supported.", loginType));
     }
+  }
+
+  private User passwordAuthenticate(String username, String password) {
+    User user = usersService.getByUsername(username);
+
+    ApiAlertException.throwIfNull(user, String.format("User [%s] does not exist", username));
+
+    ApiAlertException.throwIfTrue(
+        user.getLoginType() != LoginTypeEnum.PASSWORD,
+        "user [%s] can not login with PASSWORD",
+        username);
+
     String salt = user.getSalt();
     password = ShaHashUtils.encrypt(salt, password);
-    if (!StringUtils.equals(user.getPassword(), password)) {
-      return null;
-    }
+
+    ApiAlertException.throwIfFalse(
+        StringUtils.equals(user.getPassword(), password), "Incorrect password");
+
     return user;
   }
 
-  @Override
-  public User ldapAuthenticate(String username, String password) throws Exception {
-    String ldapEmail = ldapService.ldapLogin(username, password);
-    if (ldapEmail == null) {
+  private User ldapAuthenticate(String username, String password) throws Exception {
+    boolean ldapLoginStatus = ldapService.ldapLogin(username, password);
+    if (!ldapLoginStatus) {
       return null;
     }
     // check if user exist
-    User user = usersService.findByName(username);
-    if (user != null || !ldapService.createIfUserNotExists()) {
+    User user = usersService.getByUsername(username);
+
+    if (user != null) {
+      ApiAlertException.throwIfTrue(
+          user.getLoginType() != LoginTypeEnum.LDAP,
+          "user [%s] can only sign in with %s",
+          username,
+          user.getLoginType());
+
       return user;
     }
+    return this.newUserCreate(LoginTypeEnum.LDAP, username);
+  }
+
+  private User ssoAuthenticate(String username) throws Exception {
+    // check if user exist
+    User user = usersService.getByUsername(username);
+
+    if (user != null) {
+      ApiAlertException.throwIfTrue(
+          user.getLoginType() != LoginTypeEnum.SSO,
+          "user [%s] can only sign in with %s",
+          username,
+          user.getLoginType());
+      return user;
+    }
+
+    return this.newUserCreate(LoginTypeEnum.SSO, username);
+  }
+
+  private User newUserCreate(LoginTypeEnum loginTypeEnum, String username) throws Exception {
     User newUser = new User();
-    newUser.setCreateTime(new Date());
+    Date date = new Date();
+    newUser.setCreateTime(date);
+    newUser.setModifyTime(date);
     newUser.setUsername(username);
     newUser.setNickName(username);
-    newUser.setUserType(UserType.USER);
+    newUser.setLoginType(loginTypeEnum);
+    newUser.setUserType(UserTypeEnum.USER);
     newUser.setStatus(User.STATUS_VALID);
-    newUser.setSex(User.SEX_UNKNOW);
-    newUser.setPassword(password);
+    newUser.setSex(User.SEX_UNKNOWN);
     usersService.createUser(newUser);
     return newUser;
   }

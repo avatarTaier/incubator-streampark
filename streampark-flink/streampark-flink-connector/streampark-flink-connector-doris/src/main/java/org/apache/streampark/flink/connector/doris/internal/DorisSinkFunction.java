@@ -23,6 +23,7 @@ import org.apache.streampark.flink.connector.doris.bean.DorisSinkBufferEntry;
 import org.apache.streampark.flink.connector.doris.bean.DorisSinkRowDataWithMeta;
 import org.apache.streampark.flink.core.scala.StreamingContext;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeHint;
@@ -35,10 +36,10 @@ import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 
-import com.google.common.base.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Properties;
 
@@ -78,21 +79,20 @@ public class DorisSinkFunction<T> extends RichSinkFunction<T> implements Checkpo
     long start = System.nanoTime();
     if (value instanceof DorisSinkRowDataWithMeta) {
       DorisSinkRowDataWithMeta data = (DorisSinkRowDataWithMeta) value;
-      if (Strings.isNullOrEmpty(data.getDatabase())
-          || Strings.isNullOrEmpty(data.getTable())
+      if (StringUtils.isBlank(data.getDatabase())
+          || StringUtils.isBlank(data.getTable())
           || null == data.getDataRows()) {
         LOGGER.warn(
             String.format(
-                " row data not fullfilled. {database: %s, table: %s, dataRows: %s}",
-                data.getDatabase(), data.getTable(), data.getDataRows()));
+                " row data not fulfilled. {database: %s, table: %s, dataRows: %s}",
+                data.getDatabase(), data.getTable(), Arrays.toString(data.getDataRows())));
         return;
       }
       dorisSinkWriter.writeRecords(data.getDatabase(), data.getTable(), data.getDataRows());
     } else {
-      if (Strings.isNullOrEmpty(dorisConfig.database())
-          || Strings.isNullOrEmpty(dorisConfig.table())) {
+      if (StringUtils.isBlank(dorisConfig.database()) || StringUtils.isBlank(dorisConfig.table())) {
         throw new RuntimeException(
-            " database|table  is empt ,please check your config or create DorisSinkRowDataWithMeta instance");
+            " database|table  is empty ,please check your config or create DorisSinkRowDataWithMeta instance");
       }
       dorisSinkWriter.writeRecords(dorisConfig.database(), dorisConfig.table(), (String) value);
     }

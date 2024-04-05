@@ -23,8 +23,9 @@ import org.apache.streampark.flink.connector.doris.bean.LoadStatusFailedExceptio
 import org.apache.streampark.flink.connector.doris.bean.RespContent;
 import org.apache.streampark.flink.connector.doris.util.DorisDelimiterParser;
 
+import org.apache.streampark.shaded.com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.commons.codec.binary.Base64;
-import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -137,7 +138,7 @@ public class DorisStreamLoader implements Serializable {
             throw new LoadStatusFailedException(
                 String.format(
                     "Failed to flush data to doris, Error "
-                        + "could not get the final state of label[%s].\n",
+                        + "could not get the final state of label[%s].%n",
                     label),
                 null);
           }
@@ -147,11 +148,11 @@ public class DorisStreamLoader implements Serializable {
             throw new LoadStatusFailedException(
                 String.format(
                     "Failed to flush data to doris, Error "
-                        + "could not get the final state of label[%s]. response[%s]\n",
+                        + "could not get the final state of label[%s]. response[%s]%n",
                     label, loadResult),
                 null);
           }
-          LOG.info(String.format("Checking label[%s] state[%s]\n", label, labelState));
+          LOG.info(String.format("Checking label[%s] state[%s]%n", label, labelState));
           switch (labelState) {
             case LAEBL_STATE_VISIBLE:
               return;
@@ -162,7 +163,7 @@ public class DorisStreamLoader implements Serializable {
             case RESULT_LABEL_ABORTED:
               throw new LoadStatusFailedException(
                   String.format(
-                      "Failed to flush data to doris, Error " + "label[%s] state[%s]\n",
+                      "Failed to flush data to doris, Error " + "label[%s] state[%s]%n",
                       label, labelState),
                   null,
                   true);
@@ -170,7 +171,7 @@ public class DorisStreamLoader implements Serializable {
             default:
               throw new LoadStatusFailedException(
                   String.format(
-                      "Failed to flush data to doris, Error " + "label[%s] state[%s]\n",
+                      "Failed to flush data to doris, Error " + "label[%s] state[%s]%n",
                       label, labelState),
                   null);
           }
@@ -204,7 +205,7 @@ public class DorisStreamLoader implements Serializable {
       final Properties properties = dorisConfig.loadProperties();
       properties.forEach((k, v) -> put.setHeader(k.toString(), v.toString()));
       if (properties.containsKey("columns")) {
-        put.setHeader("timeout", dorisConfig.timeout() + "");
+        put.setHeader("timeout", String.valueOf(dorisConfig.timeout()));
       }
       put.setHeader(HttpHeaders.EXPECT, "100-continue");
       put.setHeader(

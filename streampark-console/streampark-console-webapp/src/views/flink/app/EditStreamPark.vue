@@ -23,12 +23,12 @@
   import { PageWrapper } from '/@/components/Page';
   import { BasicForm, useForm } from '/@/components/Form';
   import { onMounted, reactive, ref, nextTick, unref } from 'vue';
-  import { AppListRecord } from '/@/api/flink/app/app.type';
+  import { AppListRecord } from '/@/api/flink/app.type';
   import configOptions from './data/option';
-  import { fetchMain, fetchUpload, fetchUpdate, fetchGet } from '/@/api/flink/app/app';
+  import { fetchMain, fetchUpload, fetchUpdate, fetchGet } from '/@/api/flink/app';
   import { useRoute } from 'vue-router';
-  import { getAppConfType, handleSubmitParams } from './utils';
-  import { fetchFlinkHistory } from '/@/api/flink/app/flinkSql';
+  import { getAppConfType, handleSubmitParams, handleTeamResource } from './utils';
+  import { fetchFlinkHistory } from '/@/api/flink/flinkSql';
   import { decodeByBase64, encryptByBase64 } from '/@/utils/cipher';
   import PomTemplateTab from './components/PodTemplate/PomTemplateTab.vue';
   import UploadJobJar from './components/UploadJobJar.vue';
@@ -48,7 +48,7 @@
   import { useGo } from '/@/hooks/web/usePage';
   import ProgramArgs from './components/ProgramArgs.vue';
   import VariableReview from './components/VariableReview.vue';
-  import { ExecModeEnum, JobTypeEnum, UseStrategyEnum } from '/@/enums/flinkEnum';
+  import { ClusterStateEnum, ExecModeEnum, JobTypeEnum, UseStrategyEnum } from '/@/enums/flinkEnum';
 
   const route = useRoute();
   const go = useGo();
@@ -76,6 +76,7 @@
   const {
     alerts,
     flinkEnvs,
+    flinkClusters,
     flinkSql,
     getEditStreamParkFormSchema,
     registerDifferentDrawer,
@@ -110,6 +111,7 @@
         dynamicProperties: app.dynamicProperties,
         resolveOrder: app.resolveOrder,
         versionId: app.versionId || null,
+        teamResource: handleTeamResource(app.teamResource),
         k8sRestExposedType: app.k8sRestExposedType,
         yarnQueue: app.yarnQueue,
         restartSize: app.restartSize,
@@ -154,21 +156,19 @@
   async function handleAppUpdate(values) {
     try {
       submitLoading.value = true;
-      if (app.jobType == JobTypeEnum.JAR) {
-        handleSubmitCustomJob(values);
-      } else {
-        if (app.jobType == JobTypeEnum.SQL) {
-          if (values.flinkSql == null || values.flinkSql.trim() === '') {
-            createMessage.warning(t('flink.app.editStreamPark.flinkSqlRequired'));
-          } else {
-            const access = await flinkSql?.value?.handleVerifySql();
-            if (!access) {
-              createMessage.warning(t('flink.app.editStreamPark.sqlCheck'));
-              throw new Error(access);
-            }
-            handleSubmitSQL(values);
+      if (app.jobType == JobTypeEnum.SQL) {
+        if (values.flinkSql == null || values.flinkSql.trim() === '') {
+          createMessage.warning(t('flink.app.editStreamPark.flinkSqlRequired'));
+        } else {
+          const access = await flinkSql?.value?.handleVerifySql();
+          if (!access) {
+            createMessage.warning(t('flink.app.editStreamPark.sqlCheck'));
+            throw new Error(access);
           }
+          handleSubmitSQL(values);
         }
+      } else {
+        handleSubmitCustomJob(values);
       }
     } catch (error) {
       console.error(error);
@@ -176,10 +176,10 @@
     }
   }
 
-  function handleSubmitSQL(values: Recordable) {
+  async function handleSubmitSQL(values: Recordable) {
     try {
       // Trigger a pom confirmation operation.
-      unref(dependencyRef)?.handleApplyPom();
+      await unref(dependencyRef)?.handleApplyPom();
       // common params...
       const dependency: { pom?: string; jar?: string } = {};
       const dependencyRecords = unref(dependencyRef)?.dependencyRecords;
@@ -202,10 +202,11 @@
       }
       const params = {
         id: app.id,
-        sqlId: values.sqlId || app.sqlId || null,
+        sqlId: values.flinkSqlHistory || app.sqlId || null,
         flinkSql: values.flinkSql,
         config,
         format: values.isSetConfig ? 1 : null,
+        teamResource: JSON.stringify(values.teamResource),
         dependency:
           dependency.pom === undefined && dependency.jar === undefined
             ? null
@@ -248,6 +249,16 @@
 
   /* Send submission interface */
   async function handleUpdateApp(params: Recordable) {
+    if (params.executionMode == ExecModeEnum.KUBERNETES_SESSION) {
+      const cluster =
+        unref(flinkClusters).filter((c) => {
+          return c.id == params.flinkClusterId && c.clusterState === ClusterStateEnum.RUNNING;
+        })[0] || null;
+      if (cluster) {
+        Object.assign(params, { clusterId: cluster.clusterId });
+      }
+    }
+
     try {
       const updated = await fetchUpdate(params);
       if (updated) {
@@ -295,6 +306,7 @@
 
     setFieldsValue({
       jobType: res.jobType,
+      appType: res.appType,
       executionMode: res.executionMode,
       flinkSql: res.flinkSql ? decodeByBase64(res.flinkSql) : '',
       dependency: '',

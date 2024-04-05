@@ -6,7 +6,7 @@
 # (the "License"); you may not use this file except in compliance with
 # the License.  You may obtain a copy of the License at
 #
-#    https://www.apache.org/licenses/LICENSE-2.0
+#    http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,9 +28,6 @@ logging:
   level:
     root: info
 
-swagger:
-  enable: true
-
 knife4j:
   enable: true
   basic:
@@ -39,8 +36,18 @@ knife4j:
     username: admin
     password: streampark
 
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+  packages-to-scan: org.apache.streampark.console
+
 spring:
-  profiles.active: h2 #[h2,pgsql,mysql]
+  profiles:
+    active: h2 #[h2,pgsql,mysql]
+    # Please uncomment the below config if enable sso
+    # include: sso
   application.name: StreamPark
   devtools.restart.enabled: false
   mvc.pathmatch.matching-strategy: ant_path_matcher
@@ -54,22 +61,14 @@ spring:
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: GMT+8
+    deserialization:
+      fail-on-unknown-properties: false
   main:
     allow-circular-references: true
     banner-mode: off
-
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: [ 'health', 'httptrace', 'metrics' ]
-  endpoint:
-    health:
-      enabled: true
-      show-details: always
-      probes:
-        enabled: true
+  mvc:
+    converters:
+      preferred-json-mapper: jackson
 
 streampark:
   proxy:
@@ -78,8 +77,8 @@ streampark:
     # lark alert proxy,default https://open.feishu.cn
     lark-url:
   yarn:
-      # default sample, or kerberos
-    http-auth: sample
+    # default simple, or kerberos
+    http-auth: simple
 
   # HADOOP_USER_NAME
   hadoop-user-name: hdfs
@@ -107,6 +106,9 @@ streampark:
       polling-interval-sec:
         job-status: 2
         cluster-metric: 3
+    # If you need to specify an ingress controller, you can use this.
+    ingress:
+      class: nginx
 
   # packer garbage resources collection configuration
   packer-gc:
@@ -114,6 +116,12 @@ streampark:
     max-resource-expired-hours: 120
     # gc task running interval hours
     exec-cron: 0 0 0/6 * * ?
+  # application backup clean configuration
+  backup-clean:
+    # maximum retention number of backup
+    max-backup-num: 5
+    # default running once a day
+    exec-cron: 0 0 1 * * ?
 
   shiro:
     # token timeout, unit second
@@ -122,6 +130,8 @@ streampark:
     anonUrl: >
 
 ldap:
+  # Is ldap enabled? If so, please modify the urls
+  enable: false
   ## AD server IP, default port 389
   urls: ldap://99.99.99.99:389
   ## Login Account
@@ -131,5 +141,7 @@ ldap:
   user:
     identity-attribute: uid
     email-attribute: mail
-    # action when ldap user is not exist (supported types: CREATE,DENY)
-    not-exist-action: CREATE
+
+sso:
+  # If turn to true, please provide the sso properties the application-sso.yml
+  enable: false

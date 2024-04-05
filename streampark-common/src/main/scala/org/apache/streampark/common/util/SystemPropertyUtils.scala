@@ -18,34 +18,38 @@ package org.apache.streampark.common.util
 
 import java.io.File
 import java.security.{AccessController, PrivilegedAction}
+import java.util
 
 import scala.util.{Failure, Success, Try}
 
 object SystemPropertyUtils extends Logger {
 
+  def getUserHome(): String = System.getProperty("user.home")
+
   /**
-   * Returns {@code true} if and only if the system property with the specified {@code key}
-   * exists.
+   * Returns {@code true} if and only if the system property with the specified {@code key} exists.
    */
   def contains(key: String): Boolean = get(key) != null
 
   /**
-   * Returns the value of the Java system property with the specified
-   * {@code key}, while falling back to {@code null} if the property access fails.
+   * Returns the value of the Java system property with the specified {@code key}, while falling
+   * back to {@code null} if the property access fails.
    *
-   * @return the property value or { @code null}
+   * @return
+   *   the property value or { @code null}
    */
   def get(key: String): String = get(key, null)
 
   def get(key: String, default: String): String = {
     require(key != null, "[StreamPark] key must not be null.")
     key match {
-      case empty if empty.isEmpty => throw new IllegalArgumentException("key must not be empty.")
+      case empty if empty.isEmpty => throw new IllegalArgumentException("Key must not be empty.")
       case other =>
         Try {
           System.getSecurityManager match {
             case null => System.getProperty(other)
-            case _ => AccessController.doPrivileged(new PrivilegedAction[String]() {
+            case _ =>
+              AccessController.doPrivileged(new PrivilegedAction[String]() {
                 override def run: String = System.getProperty(other)
               })
           }
@@ -56,7 +60,8 @@ object SystemPropertyUtils extends Logger {
               case value => value
             }
           case Failure(e) =>
-            logger.warn(s"Unable to retrieve a system property '$other'; default values will be used, ${e.getMessage}.")
+            logger.warn(
+              s"Unable to retrieve a system property '$other'; default values will be used, ${e.getMessage}.")
             default
         }
     }
@@ -70,31 +75,44 @@ object SystemPropertyUtils extends Logger {
       case "false" | "no" | "0" => false
       case other: String if other.isEmpty => false
       case _ =>
-        logger.warn(s"Unable to parse the boolean system property '$key':$value - using the default value: $default.")
+        logger.warn(
+          s"Unable to parse the boolean system property '$key':$value - using the default value: $default.")
         default
     }
   }
 
   def getInt(key: String, default: Int): Int = {
-    Try(
-      get(key).toInt) match {
+    Try(get(key).toInt) match {
       case Success(ok) => ok
       case Failure(_) => default
     }
   }
 
   def getLong(key: String, default: Long): Long = {
-    Try(
-      get(key).toLong) match {
+    Try(get(key).toLong) match {
       case Success(ok) => ok
       case Failure(_) => default
     }
   }
 
-  /**
-   * Sets the value of the Java system property with the specified {@code key}
-   */
-  def set(key: String, value: String): String = System.getProperties.setProperty(key, value).asInstanceOf[String]
+  /** Sets the value of the Java system property with the specified {@code key} */
+  def set(key: String, value: String): String =
+    System.getProperties.setProperty(key, value).asInstanceOf[String]
+
+  @throws[Exception]
+  def setEnv(name: String, value: String): Unit = {
+    val envClass = Class.forName("java.lang.ProcessEnvironment")
+    val getEnv = envClass.getDeclaredMethod("getenv")
+    getEnv.setAccessible(true)
+    val unmodifiableEnvironment = getEnv.invoke(null)
+    val clazz = Class.forName("java.util.Collections$UnmodifiableMap")
+    val field = clazz.getDeclaredField("m")
+    field.setAccessible(true)
+    field
+      .get(unmodifiableEnvironment)
+      .asInstanceOf[util.Map[String, String]]
+      .put(name, value)
+  }
 
   def getOrElseUpdate(key: String, default: String): String = {
     get(key) match {

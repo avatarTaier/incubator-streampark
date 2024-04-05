@@ -17,39 +17,56 @@
 
 package org.apache.streampark.flink.connector.failover
 
+import org.apache.streampark.common.util.Logger
+
 import java.util
 import java.util.regex.Pattern
 
-import scala.collection.JavaConversions._
+import org.apache.streampark.common.Constant
 
-case class SinkRequest(records: util.List[String], var attemptCounter: Int = 0) {
+import scala.collection.convert.ImplicitConversions.`collection AsScalaIterable`
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
+
+case class SinkRequest(records: util.List[String], var attemptCounter: Int = 0) extends Logger {
   def incrementCounter(): Unit = attemptCounter += 1
 
   def size: Int = records.size()
 
-  private[this] lazy val TABLE_REGEXP = Pattern.compile(
-    "(insert\\s+into|update|delete)\\s+(.*?)(\\(|\\s+)",
-    Pattern.CASE_INSENSITIVE)
+  private[this] lazy val TABLE_REGEXP =
+    Pattern.compile("(insert\\s+into|update|delete)\\s+(.*?)(\\(|\\s+)", Pattern.CASE_INSENSITIVE)
 
-  private[this] lazy val INSERT_REGEXP = Pattern.compile(
-    "^(.*)\\s+(values|value)(.*)",
-    Pattern.CASE_INSENSITIVE)
+  private[this] lazy val INSERT_REGEXP =
+    Pattern.compile("^(.*?)\\s+(values|value)(.*)", Pattern.CASE_INSENSITIVE)
 
-  lazy val sqlStatement: String = {
-    val matcher = INSERT_REGEXP.matcher(records.head)
-    if (!matcher.find()) null;
-    else {
-      val prefix = matcher.group(1)
-      val values = records.map(x => {
+  lazy val sqlStatement: List[String] = {
+    var result: List[String] = List.empty[String]
+    val prefixMap: mutable.Map[String, ListBuffer[String]] =
+      mutable.Map.empty[String, ListBuffer[String]]
+
+    records.forEach(
+      x => {
+        // group statements by the part before 'value(s)' in insert statements.
         val valueMatcher = INSERT_REGEXP.matcher(x)
         if (valueMatcher.find()) {
-          valueMatcher.group(3)
+          val prefix = valueMatcher.group(1)
+          prefixMap.get(prefix) match {
+            case Some(value) => value += valueMatcher.group(3)
+            case None => prefixMap(prefix) = ListBuffer(valueMatcher.group(3))
+          }
         } else {
-          null
+          // other statements will be ignored.
+          logWarn(s"ignore record: $x")
         }
-      }).mkString(",")
-      s"$prefix VALUES $values"
+      })
+    if (prefixMap.nonEmpty) {
+      // combine statements by the part before 'value(s)' in insert statements.
+      result = prefixMap.map(m => s"""${m._1} VALUES ${m._2.mkString(",")}""").toList
     }
+
+    logDebug(s"script to commit: ${result.mkString(Constant.SEMICOLON)}")
+
+    result
   }
 
   lazy val table: String = {

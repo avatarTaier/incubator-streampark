@@ -18,9 +18,8 @@
 package org.apache.streampark.console.core.service;
 
 import org.apache.streampark.console.core.entity.AppBuildPipeline;
-import org.apache.streampark.console.core.entity.Application;
 import org.apache.streampark.flink.packer.pipeline.DockerResolvedSnapshot;
-import org.apache.streampark.flink.packer.pipeline.PipelineStatus;
+import org.apache.streampark.flink.packer.pipeline.PipelineStatusEnum;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 
@@ -30,10 +29,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+/** Applications can be built asynchronously, can manage pipeline and get info */
 public interface AppBuildPipeService extends IService<AppBuildPipeline> {
 
-  /** Build application. This is an async call method. */
-  boolean buildApplication(@Nonnull Application app) throws Exception;
+  /**
+   * Build application. This is an async call method.
+   *
+   * @param appId application id
+   * @param forceBuild forced start pipeline or not
+   * @return Whether the pipeline was successfully started
+   */
+  boolean buildApplication(@Nonnull Long appId, boolean forceBuild) throws Exception;
 
   /**
    * Get current build pipeline instance of specified application
@@ -43,19 +49,34 @@ public interface AppBuildPipeService extends IService<AppBuildPipeline> {
    */
   Optional<AppBuildPipeline> getCurrentBuildPipeline(@Nonnull Long appId);
 
-  /** Get Docker resolved snapshot of specified application. */
+  /**
+   * Get Docker resolved snapshot of specified application.
+   *
+   * @param appId application id
+   * @return DockerResolvedSnapshot instance
+   */
   DockerResolvedSnapshot getDockerProgressDetailSnapshot(@Nonnull Long appId);
 
-  /** Whether the application can currently start a new building progress */
+  /**
+   * Whether the application can currently start a new building progress
+   *
+   * @param appId application id
+   * @return Whether construction can be started at this time
+   */
   boolean allowToBuildNow(@Nonnull Long appId);
 
-  /** list pipeline status on application id list */
-  Map<Long, PipelineStatus> listPipelineStatus(List<Long> appIds);
+  /**
+   * List pipeline status on application id list
+   *
+   * @param appIds list of application ids
+   * @return Map structure, key is application id, value is for the pipeline state
+   */
+  Map<Long, PipelineStatusEnum> listAppIdPipelineStatusMap(List<Long> appIds);
 
   /**
-   * delete appBuildPipeline By application
+   * Delete appBuildPipeline By application id
    *
    * @param appId
    */
-  void removeApp(Long appId);
+  void removeByAppId(Long appId);
 }

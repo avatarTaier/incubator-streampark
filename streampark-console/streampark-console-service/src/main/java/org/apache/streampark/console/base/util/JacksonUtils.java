@@ -19,7 +19,6 @@ package org.apache.streampark.console.base.util;
 
 import org.apache.streampark.common.util.DateUtils;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -29,6 +28,7 @@ import com.fasterxml.jackson.module.scala.DefaultScalaModule;
 
 import java.text.SimpleDateFormat;
 
+/** Serialization utils */
 public final class JacksonUtils {
 
   private JacksonUtils() {}
@@ -41,7 +41,6 @@ public final class JacksonUtils {
     MAPPER.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     MAPPER.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
     MAPPER.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
-    MAPPER.setSerializationInclusion(JsonInclude.Include.NON_NULL);
     MAPPER.setDateFormat(new SimpleDateFormat(DateUtils.fullFormat()));
   }
 

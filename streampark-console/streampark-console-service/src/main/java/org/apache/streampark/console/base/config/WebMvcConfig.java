@@ -19,30 +19,37 @@ package org.apache.streampark.console.base.config;
 
 import org.apache.streampark.console.base.interceptor.UploadFileTypeInterceptor;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.Module;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.converter.ByteArrayHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.ResourceHttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.http.converter.support.AllEncompassingFormHttpMessageConverter;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-import java.text.SimpleDateFormat;
 import java.util.List;
 
+/** Customize the SpringMVC configuration */
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
 
   @Autowired private UploadFileTypeInterceptor uploadFileTypeInterceptor;
+
+  private static final String[] CORS_MAPPINGS_ALLOWED_METHODS = {
+    HttpMethod.POST.name(),
+    HttpMethod.GET.name(),
+    HttpMethod.PUT.name(),
+    HttpMethod.OPTIONS.name(),
+    HttpMethod.DELETE.name()
+  };
 
   @Override
   public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
@@ -50,38 +57,41 @@ public class WebMvcConfig implements WebMvcConfigurer {
     converters.add(new StringHttpMessageConverter());
     converters.add(new ResourceHttpMessageConverter());
     converters.add(new AllEncompassingFormHttpMessageConverter());
-    converters.add(jackson2HttpMessageConverter());
   }
 
+  /**
+   * Used to solve cross-domain problems
+   *
+   * @param registry
+   */
   @Override
   public void addCorsMappings(CorsRegistry registry) {
     registry
         .addMapping("/**")
         .allowedOriginPatterns("*")
-        .allowedMethods("POST", "GET", "PUT", "OPTIONS", "DELETE")
+        .allowedMethods(CORS_MAPPINGS_ALLOWED_METHODS)
         .allowedHeaders("*")
         .allowCredentials(true)
         .maxAge(3600);
   }
 
   @Bean
-  public MappingJackson2HttpMessageConverter jackson2HttpMessageConverter() {
-    MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter();
-    ObjectMapper mapper = new ObjectMapper();
-
-    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    mapper.setDateFormat(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"));
-
-    SimpleModule simpleModule = new SimpleModule();
-    simpleModule.addSerializer(Long.class, ToStringSerializer.instance);
-    simpleModule.addSerializer(Long.TYPE, ToStringSerializer.instance);
-    mapper.registerModule(simpleModule);
-    converter.setObjectMapper(mapper);
-    return converter;
+  public Module jacksonModule() {
+    SimpleModule module = new SimpleModule();
+    module.addSerializer(Long.class, ToStringSerializer.instance);
+    module.addSerializer(Long.TYPE, ToStringSerializer.instance);
+    return module;
   }
 
+  /**
+   * Add an interceptor.
+   *
+   * @param registry
+   */
   @Override
   public void addInterceptors(InterceptorRegistry registry) {
-    registry.addInterceptor(uploadFileTypeInterceptor).addPathPatterns("/flink/app/upload");
+    registry
+        .addInterceptor(uploadFileTypeInterceptor)
+        .addPathPatterns("/flink/app/upload", "/resource/upload");
   }
 }

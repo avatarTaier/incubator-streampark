@@ -25,22 +25,19 @@ import org.apache.streampark.console.system.service.MenuService;
 
 import org.apache.shiro.authz.annotation.RequiresPermissions;
 
-import com.baomidou.mybatisplus.core.toolkit.StringPool;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.validation.Valid;
-import javax.validation.constraints.NotBlank;
-
-import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
+@Tag(name = "MENU_TAG")
 @Slf4j
 @Validated
 @RestController
@@ -51,41 +48,19 @@ public class MenuController {
 
   @Autowired private CommonService commonService;
 
+  @Operation(summary = "List menu-routes")
   @PostMapping("router")
   public RestResponse getUserRouters(Long teamId) {
     // TODO The teamId is required, get routers should be called after choose teamId.
-    ArrayList<VueRouter<Menu>> routers =
-        this.menuService.getUserRouters(commonService.getUserId(), teamId);
+    List<VueRouter<Menu>> routers = this.menuService.listRouters(commonService.getUserId(), teamId);
     return RestResponse.success(routers);
   }
 
+  @Operation(summary = "List menus")
   @PostMapping("list")
   @RequiresPermissions("menu:view")
   public RestResponse menuList(Menu menu) {
-    Map<String, Object> maps = this.menuService.findMenus(menu);
-    return RestResponse.success(maps);
-  }
-
-  @PostMapping("post")
-  @RequiresPermissions("menu:add")
-  public RestResponse addMenu(@Valid Menu menu) {
-    this.menuService.createMenu(menu);
-    return RestResponse.success();
-  }
-
-  @DeleteMapping("delete")
-  @RequiresPermissions("menu:delete")
-  public RestResponse deleteMenus(@NotBlank(message = "{required}") String menuIds)
-      throws Exception {
-    String[] ids = menuIds.split(StringPool.COMMA);
-    this.menuService.deleteMenus(ids);
-    return RestResponse.success();
-  }
-
-  @PutMapping("update")
-  @RequiresPermissions("menu:update")
-  public RestResponse updateMenu(@Valid Menu menu) throws Exception {
-    this.menuService.updateMenu(menu);
-    return RestResponse.success();
+    Map<String, Object> menuMap = this.menuService.listMenuMap(menu);
+    return RestResponse.success(menuMap);
   }
 }

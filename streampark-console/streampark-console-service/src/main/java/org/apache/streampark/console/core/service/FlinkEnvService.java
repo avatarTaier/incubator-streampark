@@ -18,6 +18,7 @@
 package org.apache.streampark.console.core.service;
 
 import org.apache.streampark.console.core.entity.FlinkEnv;
+import org.apache.streampark.console.core.enums.FlinkEnvCheckEnum;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 
@@ -26,62 +27,82 @@ import java.io.IOException;
 public interface FlinkEnvService extends IService<FlinkEnv> {
 
   /**
-   * check exists
+   * Checks if a specific version of Flink exists.
    *
-   * @param version
-   * @return
+   * @param version The version of Flink to check.
+   * @return Returns enum value indicating the existence of the specified version.
    */
-  boolean exists(FlinkEnv version);
+  FlinkEnvCheckEnum check(FlinkEnv version);
 
   /**
-   * create new
+   * Create a new instance.
    *
-   * @param version
-   * @throws IOException
+   * @param version The version of FlinkEnv to use.
+   * @throws Exception if an error occurs during the creation process.
+   * @return true if the instance is successfully created, false otherwise.
    */
   boolean create(FlinkEnv version) throws Exception;
 
   /**
-   * update
+   * Deletes a Flink environment with the provided ID.
    *
-   * @param version
-   * @throws IOException
+   * @param id the ID of the Flink environment to delete
+   */
+  void removeById(Long id);
+
+  /**
+   * Updates the specified version of Flink environment.
+   *
+   * @param version the version of Flink environment to update
+   * @throws IOException if an I/O error occurs during the update process
    */
   void update(FlinkEnv version) throws IOException;
 
   /**
-   * get flink version by appid
+   * Get flink version by application id.
    *
-   * @param appId
-   * @return
+   * @param appId the ID of the application
+   * @return the FlinkEnv object representing the version of Flink associated with the given app ID
    */
   FlinkEnv getByAppId(Long appId);
 
   /**
-   * set a flink version as the default
+   * Sets the specified Flink version as the default.
    *
-   * @param id
+   * @param id The ID of the Flink version to set as the default.
    */
   void setDefault(Long id);
 
   /**
-   * get default version
+   * Retrieves the default version of FlinkEnv.
    *
-   * @return
+   * @return the default version of FlinkEnv
    */
   FlinkEnv getDefault();
 
   /**
-   * get flink version, if null, get default version
+   * Retrieves a Flink environment by ID, if available. If the ID is null or not found, the method
+   * returns the default Flink environment.
    *
-   * @return
+   * @param id The ID of the Flink environment to retrieve. If null, the default environment will be
+   *     retrieved.
+   * @return The Flink environment with the specified ID, or the default environment if the ID is
+   *     null or not found.
    */
   FlinkEnv getByIdOrDefault(Long id);
 
   /**
-   * sycn conf file
+   * Synchronizes the configuration file for the given id.
    *
-   * @param id
+   * @param id The id of the configuration file to be synchronized.
+   * @throws IOException If an I/O error occurs while synchronizing the configuration file.
    */
   void syncConf(Long id) throws IOException;
+
+  /**
+   * Checks the validity of the given ID.
+   *
+   * @param id The ID to check for validity.
+   */
+  void validity(Long id);
 }

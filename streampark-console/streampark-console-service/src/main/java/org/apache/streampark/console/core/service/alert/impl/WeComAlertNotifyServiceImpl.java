@@ -19,7 +19,7 @@ package org.apache.streampark.console.core.service.alert.impl;
 
 import org.apache.streampark.console.base.exception.AlertException;
 import org.apache.streampark.console.base.util.FreemarkerUtils;
-import org.apache.streampark.console.core.bean.AlertConfigWithParams;
+import org.apache.streampark.console.core.bean.AlertConfigParams;
 import org.apache.streampark.console.core.bean.AlertTemplate;
 import org.apache.streampark.console.core.bean.AlertWeComParams;
 import org.apache.streampark.console.core.bean.RobotResponse;
@@ -34,8 +34,6 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import javax.annotation.PostConstruct;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -43,7 +41,7 @@ import java.util.Map;
 @Service
 @Lazy
 public class WeComAlertNotifyServiceImpl implements AlertNotifyService {
-  private Template template;
+  private final Template template = FreemarkerUtils.loadTemplateFile("alert-weCom.ftl");
 
   private final RestTemplate alertRestTemplate;
 
@@ -51,14 +49,8 @@ public class WeComAlertNotifyServiceImpl implements AlertNotifyService {
     this.alertRestTemplate = alertRestTemplate;
   }
 
-  @PostConstruct
-  public void loadTemplateFile() throws Exception {
-    String template = "alert-weCom.ftl";
-    this.template = FreemarkerUtils.loadTemplateFile(template);
-  }
-
   @Override
-  public boolean doAlert(AlertConfigWithParams alertConfig, AlertTemplate alertTemplate)
+  public boolean doAlert(AlertConfigParams alertConfig, AlertTemplate alertTemplate)
       throws AlertException {
     AlertWeComParams weComParams = alertConfig.getWeComParams();
     try {
@@ -93,18 +85,18 @@ public class WeComAlertNotifyServiceImpl implements AlertNotifyService {
     try {
       robotResponse = alertRestTemplate.postForObject(url, entity, RobotResponse.class);
     } catch (Exception e) {
-      log.error("Failed to request DingTalk robot alarm,\nurl:{}", url, e);
+      log.error("Failed to request WeCom robot alarm,%nurl:{}", url, e);
       throw new AlertException(
-          String.format("Failed to request WeCom robot alert,\nurl:%s", url), e);
+          String.format("Failed to request WeCom robot alert,%nurl:%s", url), e);
     }
 
     if (robotResponse == null) {
-      throw new AlertException(String.format("Failed to request WeCom robot alert,\nurl:%s", url));
+      throw new AlertException(String.format("Failed to request WeCom robot alert,%nurl:%s", url));
     }
     if (robotResponse.getErrcode() != 0) {
       throw new AlertException(
           String.format(
-              "Failed to request DingTalk robot alert,\nurl:%s,\nerrorCode:%d,\nerrorMsg:%s",
+              "Failed to request WeCom robot alert,%nurl:%s,%nerrorCode:%d,%nerrorMsg:%s",
               url, robotResponse.getErrcode(), robotResponse.getErrmsg()));
     }
   }

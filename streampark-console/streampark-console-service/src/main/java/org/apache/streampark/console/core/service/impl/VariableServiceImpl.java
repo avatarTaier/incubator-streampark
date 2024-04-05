@@ -24,16 +24,18 @@ import org.apache.streampark.console.base.mybatis.pager.MybatisPager;
 import org.apache.streampark.console.core.entity.Application;
 import org.apache.streampark.console.core.entity.FlinkSql;
 import org.apache.streampark.console.core.entity.Variable;
+import org.apache.streampark.console.core.enums.ReleaseStateEnum;
 import org.apache.streampark.console.core.mapper.VariableMapper;
-import org.apache.streampark.console.core.service.ApplicationService;
 import org.apache.streampark.console.core.service.CommonService;
 import org.apache.streampark.console.core.service.FlinkSqlService;
 import org.apache.streampark.console.core.service.VariableService;
+import org.apache.streampark.console.core.service.application.ApplicationManageService;
 
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -63,42 +65,41 @@ public class VariableServiceImpl extends ServiceImpl<VariableMapper, Variable>
 
   private static final String PLACEHOLDER_END = "}";
 
-  @Autowired private ApplicationService applicationService;
+  @Autowired private ApplicationManageService applicationManageService;
 
   @Autowired private FlinkSqlService flinkSqlService;
 
   @Autowired private CommonService commonService;
 
   @Override
-  @Transactional(rollbackFor = Exception.class)
   public void createVariable(Variable variable) {
-    if (this.findByVariableCode(variable.getTeamId(), variable.getVariableCode()) != null) {
-      throw new ApiAlertException("Sorry, the variable code already exists.");
-    }
+
+    ApiAlertException.throwIfTrue(
+        this.findByVariableCode(variable.getTeamId(), variable.getVariableCode()) != null,
+        "Sorry, the variable code already exists.");
+
     variable.setCreatorId(commonService.getUserId());
     this.save(variable);
   }
 
   @Override
-  @Transactional(rollbackFor = Exception.class)
-  public void deleteVariable(Variable variable) {
-    if (isDependByApplications(variable)) {
-      throw new ApiAlertException("Sorry, the variable is actually used.");
-    }
+  public void remove(Variable variable) {
+    ApiAlertException.throwIfTrue(
+        isDependByApplications(variable), "Sorry, the variable is actually used.");
     this.removeById(variable);
   }
 
   @Override
-  public IPage<Variable> page(Variable variable, RestRequest request) {
+  public IPage<Variable> getPage(Variable variable, RestRequest request) {
     if (variable.getTeamId() == null) {
       return null;
     }
-    Page<Variable> page = new MybatisPager<Variable>().getDefaultPage(request);
-    return this.baseMapper.page(page, variable);
+    Page<Variable> page = MybatisPager.getPage(request);
+    return this.baseMapper.selectPage(page, variable);
   }
 
   @Override
-  public IPage<Application> dependAppsPage(Variable variable, RestRequest request) {
+  public IPage<Application> getDependAppsPage(Variable variable, RestRequest request) {
     List<Application> applications = getDependApplicationsByCode(variable);
 
     IPage<Application> page = new Page<>();
@@ -110,9 +111,34 @@ public class VariableServiceImpl extends ServiceImpl<VariableMapper, Variable>
     page.setTotal(applications.size());
     int fromIndex = (request.getPageNum() - 1) * request.getPageSize();
     int toIndex = request.getPageNum() * request.getPageSize();
-    toIndex = toIndex > applications.size() ? applications.size() : toIndex;
+    toIndex = Math.min(toIndex, applications.size());
     page.setRecords(applications.subList(fromIndex, toIndex));
     return page;
+  }
+
+  @Override
+  public void updateVariable(Variable variable) {
+    // region update variable
+    ApiAlertException.throwIfNull(variable.getId(), "Sorry, the variable id cannot be null.");
+    Variable findVariable = this.baseMapper.selectById(variable.getId());
+    ApiAlertException.throwIfNull(findVariable, "Sorry, the variable does not exist.");
+    ApiAlertException.throwIfFalse(
+        findVariable.getVariableCode().equals(variable.getVariableCode()),
+        "Sorry, the variable code cannot be updated.");
+    this.baseMapper.updateById(variable);
+    // endregion
+
+    // set Application's field release to NEED_RESTART
+    List<Application> applications = getDependApplicationsByCode(variable);
+    if (CollectionUtils.isNotEmpty(applications)) {
+      applicationManageService.update(
+          new UpdateWrapper<Application>()
+              .lambda()
+              .in(
+                  Application::getId,
+                  applications.stream().map(Application::getId).collect(Collectors.toList()))
+              .set(Application::getRelease, ReleaseStateEnum.NEED_RESTART.get()));
+    }
   }
 
   @Override
@@ -131,8 +157,8 @@ public class VariableServiceImpl extends ServiceImpl<VariableMapper, Variable>
    * @return
    */
   @Override
-  public List<Variable> findByTeamId(Long teamId) {
-    return findByTeamId(teamId, null);
+  public List<Variable> listByTeamId(Long teamId) {
+    return listByTeamId(teamId, null);
   }
 
   /**
@@ -143,8 +169,8 @@ public class VariableServiceImpl extends ServiceImpl<VariableMapper, Variable>
    * @return
    */
   @Override
-  public List<Variable> findByTeamId(Long teamId, String keyword) {
-    return baseMapper.selectByTeamId(teamId, keyword);
+  public List<Variable> listByTeamId(Long teamId, String keyword) {
+    return baseMapper.selectVarsByTeamId(teamId, keyword);
   }
 
   /**
@@ -156,10 +182,10 @@ public class VariableServiceImpl extends ServiceImpl<VariableMapper, Variable>
    */
   @Override
   public String replaceVariable(Long teamId, String mixed) {
-    if (StringUtils.isEmpty(mixed)) {
+    if (StringUtils.isBlank(mixed)) {
       return mixed;
     }
-    List<Variable> variables = findByTeamId(teamId);
+    List<Variable> variables = listByTeamId(teamId);
     if (CollectionUtils.isEmpty(variables)) {
       return mixed;
     }
@@ -172,7 +198,7 @@ public class VariableServiceImpl extends ServiceImpl<VariableMapper, Variable>
       String placeholder = matcher.group();
       String variableCode = getCodeFromPlaceholder(placeholder);
       String variableValue = variableMap.get(variableCode);
-      if (StringUtils.isNotEmpty(variableValue)) {
+      if (StringUtils.isNotBlank(variableValue)) {
         restore = restore.replace(placeholder, variableValue);
       }
     }
@@ -185,28 +211,25 @@ public class VariableServiceImpl extends ServiceImpl<VariableMapper, Variable>
 
   private List<Application> getDependApplicationsByCode(Variable variable) {
     List<Application> dependApplications = new ArrayList<>();
-    List<Application> applications = applicationService.getByTeamId(variable.getTeamId());
+    List<Application> applications = applicationManageService.listByTeamId(variable.getTeamId());
     Map<Long, Application> applicationMap =
         applications.stream()
             .collect(Collectors.toMap(Application::getId, application -> application));
 
     // Get applications that depend on this variable in application args
-    if (applications != null) {
-      for (Application app : applications) {
-        if (isDepend(variable.getVariableCode(), app.getArgs())) {
-          dependApplications.add(app);
-        }
+    for (Application app : applications) {
+      if (isDepend(variable.getVariableCode(), app.getArgs())) {
+        dependApplications.add(app);
       }
     }
+
     // Get the application that depends on this variable in flink sql
-    List<FlinkSql> flinkSqls = flinkSqlService.getByTeamId(variable.getTeamId());
-    if (flinkSqls != null) {
-      for (FlinkSql flinkSql : flinkSqls) {
-        if (isDepend(variable.getVariableCode(), DeflaterUtils.unzipString(flinkSql.getSql()))) {
-          Application app = applicationMap.get(flinkSql.getAppId());
-          if (!dependApplications.contains(app)) {
-            dependApplications.add(applicationMap.get(flinkSql.getAppId()));
-          }
+    List<FlinkSql> flinkSqls = flinkSqlService.listByTeamId(variable.getTeamId());
+    for (FlinkSql flinkSql : flinkSqls) {
+      if (isDepend(variable.getVariableCode(), DeflaterUtils.unzipString(flinkSql.getSql()))) {
+        Application app = applicationMap.get(flinkSql.getAppId());
+        if (!dependApplications.contains(app)) {
+          dependApplications.add(applicationMap.get(flinkSql.getAppId()));
         }
       }
     }
@@ -221,7 +244,7 @@ public class VariableServiceImpl extends ServiceImpl<VariableMapper, Variable>
    * @return If mixed can match the variableCode, return true, otherwise return false
    */
   private boolean isDepend(String variableCode, String mixed) {
-    if (StringUtils.isEmpty(mixed)) {
+    if (StringUtils.isBlank(mixed)) {
       return false;
     }
     String placeholder = String.format("%s%s%s", PLACEHOLDER_START, variableCode, PLACEHOLDER_END);

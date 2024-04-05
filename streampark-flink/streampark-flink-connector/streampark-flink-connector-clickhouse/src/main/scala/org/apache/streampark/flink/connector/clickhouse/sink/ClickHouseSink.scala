@@ -17,21 +17,23 @@
 
 package org.apache.streampark.flink.connector.clickhouse.sink
 
-import java.util.Properties
-
-import scala.annotation.meta.param
-
-import org.apache.flink.streaming.api.datastream.{DataStream => JavaDataStream}
-import org.apache.flink.streaming.api.datastream.DataStreamSink
-import org.apache.flink.streaming.api.scala.DataStream
-
 import org.apache.streampark.common.util._
 import org.apache.streampark.flink.connector.clickhouse.internal.{AsyncClickHouseSinkFunction, ClickHouseSinkFunction}
 import org.apache.streampark.flink.connector.function.TransformFunction
 import org.apache.streampark.flink.connector.sink.Sink
 import org.apache.streampark.flink.core.scala.StreamingContext
 
+import org.apache.flink.streaming.api.datastream.{DataStream => JavaDataStream}
+import org.apache.flink.streaming.api.datastream.DataStreamSink
+import org.apache.flink.streaming.api.scala.DataStream
+
+import java.util.Properties
+
+import scala.annotation.meta.param
+
 object ClickHouseSink {
+
+  val sinkNullHintMsg = "Sink Stream must not null"
 
   /**
    * @param property
@@ -47,7 +49,8 @@ object ClickHouseSink {
       property: Properties = new Properties(),
       parallelism: Int = 0,
       name: String = null,
-      uid: String = null)(implicit ctx: StreamingContext): ClickHouseSink = new ClickHouseSink(ctx, property, parallelism, name, uid)
+      uid: String = null)(implicit ctx: StreamingContext): ClickHouseSink =
+    new ClickHouseSink(ctx, property, parallelism, name, uid)
 
 }
 
@@ -56,7 +59,9 @@ class ClickHouseSink(
     property: Properties = new Properties(),
     parallelism: Int = 0,
     name: String = null,
-    uid: String = null)(implicit alias: String = "") extends Sink with Logger {
+    uid: String = null)(implicit alias: String = "")
+  extends Sink
+  with Logger {
 
   val prop = ctx.parameter.getProperties
 
@@ -73,13 +78,15 @@ class ClickHouseSink(
   /**
    * asynchronous Write
    *
-   * @param scala stream
+   * @param scala
+   *   stream
    * @param toSQLFn
    * @tparam T
    * @return
    */
-  def asyncSink[T](stream: DataStream[T])(implicit toSQLFn: T => String = null): DataStreamSink[T] = {
-    require(stream != null, () => s"sink Stream must not null")
+  def asyncSink[T](stream: DataStream[T])(implicit
+      toSQLFn: T => String = null): DataStreamSink[T] = {
+    require(stream != null, () => sinkNullHintMsg)
     val sinkFun = new AsyncClickHouseSinkFunction[T](prop, toSQLFn)
     val sink = stream.addSink(sinkFun)
     afterSink(sink, parallelism, name, uid)
@@ -88,13 +95,16 @@ class ClickHouseSink(
   /**
    * asynchronous Write
    *
-   * @param java stream
+   * @param java
+   *   stream
    * @param toSQLFn
    * @tparam T
    * @return
    */
-  def asyncSink[T](stream: JavaDataStream[T], toSQLFn: TransformFunction[T, String]): DataStreamSink[T] = {
-    require(stream != null, () => s"sink Stream must not null")
+  def asyncSink[T](
+      stream: JavaDataStream[T],
+      toSQLFn: TransformFunction[T, String]): DataStreamSink[T] = {
+    require(stream != null, () => sinkNullHintMsg)
     val sinkFun = new AsyncClickHouseSinkFunction[T](prop, toSQLFn)
     val sink = stream.addSink(sinkFun)
     afterSink(sink, parallelism, name, uid)
@@ -112,13 +122,15 @@ class ClickHouseSink(
   /**
    * synchronous Write
    *
-   * @param scala stream
+   * @param scala
+   *   stream
    * @param toSQLFn
    * @tparam T
    * @return
    */
-  def jdbcSink[T](stream: DataStream[T])(implicit toSQLFn: T => String = null): DataStreamSink[T] = {
-    require(stream != null, () => s"sink Stream must not null")
+  def jdbcSink[T](stream: DataStream[T])(implicit
+      toSQLFn: T => String = null): DataStreamSink[T] = {
+    require(stream != null, () => sinkNullHintMsg)
     val sinkFun = new ClickHouseSinkFunction[T](prop, toSQLFn)
     val sink = stream.addSink(sinkFun)
     afterSink(sink, parallelism, name, uid)
@@ -127,13 +139,16 @@ class ClickHouseSink(
   /**
    * synchronous Write
    *
-   * @param java stream
+   * @param java
+   *   stream
    * @param sqlFromFn
    * @tparam T
    * @return
    */
-  def jdbcSink[T](stream: JavaDataStream[T], sqlFromFn: TransformFunction[T, String]): DataStreamSink[T] = {
-    require(stream != null, () => s"sink Stream must not null")
+  def jdbcSink[T](
+      stream: JavaDataStream[T],
+      sqlFromFn: TransformFunction[T, String]): DataStreamSink[T] = {
+    require(stream != null, () => sinkNullHintMsg)
     val sinkFun = new ClickHouseSinkFunction[T](prop, sqlFromFn)
     val sink = stream.addSink(sinkFun)
     afterSink(sink, parallelism, name, uid)

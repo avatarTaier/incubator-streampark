@@ -17,9 +17,10 @@
 
 package org.apache.streampark.flink.client.`trait`
 
-import javax.annotation.Nonnull
-
-import scala.language.postfixOps
+import org.apache.streampark.common.enums.{FlinkExecutionMode, FlinkK8sRestExposedType}
+import org.apache.streampark.flink.client.bean._
+import org.apache.streampark.flink.kubernetes.PodTemplateTool
+import org.apache.streampark.flink.packer.pipeline.DockerImageBuildResponse
 
 import org.apache.commons.lang3.StringUtils
 import org.apache.flink.api.common.JobID
@@ -30,14 +31,11 @@ import org.apache.flink.kubernetes.{KubernetesClusterClientFactory, KubernetesCl
 import org.apache.flink.kubernetes.configuration.KubernetesConfigOptions
 import org.apache.flink.kubernetes.configuration.KubernetesConfigOptions.ServiceExposedType
 
-import org.apache.streampark.common.enums.{ExecutionMode, FlinkK8sRestExposedType}
-import org.apache.streampark.flink.kubernetes.IngressController
-import org.apache.streampark.flink.packer.pipeline.DockerImageBuildResponse
-import org.apache.streampark.flink.client.bean._
+import javax.annotation.Nonnull
 
-/**
- * kubernetes native mode submit
- */
+import scala.language.postfixOps
+
+/** kubernetes native mode submit */
 trait KubernetesNativeClientTrait extends FlinkClientTrait {
 
   override def setConfig(submitRequest: SubmitRequest, flinkConfig: Configuration): Unit = {
@@ -47,49 +45,64 @@ trait KubernetesNativeClientTrait extends FlinkClientTrait {
       .safeSet(KubernetesConfigOptions.NAMESPACE, submitRequest.k8sSubmitParam.kubernetesNamespace)
       .safeSet(
         KubernetesConfigOptions.REST_SERVICE_EXPOSED_TYPE,
-        covertToServiceExposedType(submitRequest.k8sSubmitParam.flinkRestExposedType))
+        covertToServiceExposedType(submitRequest.k8sSubmitParam.flinkRestExposedType.get))
 
-    if (submitRequest.buildResult != null) {
-      if (submitRequest.executionMode == ExecutionMode.KUBERNETES_NATIVE_APPLICATION) {
-        val buildResult = submitRequest.buildResult.asInstanceOf[DockerImageBuildResponse]
-        buildResult.podTemplatePaths.foreach(p => {
-          flinkConfig
-            .safeSet(KubernetesConfigOptions.KUBERNETES_POD_TEMPLATE, p._2)
-            .safeSet(KubernetesConfigOptions.JOB_MANAGER_POD_TEMPLATE, p._2)
-            .safeSet(KubernetesConfigOptions.TASK_MANAGER_POD_TEMPLATE, p._2)
+    val addBuildParamState =
+      submitRequest.buildResult != null && submitRequest.executionMode == FlinkExecutionMode.KUBERNETES_NATIVE_APPLICATION
+    if (addBuildParamState) {
+      val buildResult = submitRequest.buildResult.asInstanceOf[DockerImageBuildResponse]
+      buildResult.podTemplatePaths.foreach(
+        p => {
+          if (PodTemplateTool.KUBERNETES_POD_TEMPLATE.key.equals(p._1)) {
+            flinkConfig.safeSet(KubernetesConfigOptions.KUBERNETES_POD_TEMPLATE, p._2)
+          } else if (PodTemplateTool.KUBERNETES_JM_POD_TEMPLATE.key.equals(p._1)) {
+            flinkConfig.safeSet(KubernetesConfigOptions.JOB_MANAGER_POD_TEMPLATE, p._2)
+          } else if (PodTemplateTool.KUBERNETES_TM_POD_TEMPLATE.key.equals(p._1)) {
+            flinkConfig.safeSet(KubernetesConfigOptions.TASK_MANAGER_POD_TEMPLATE, p._2)
+          }
         })
-      }
+    }
+
+    // add flink conf configuration, mainly to set the log4j configuration
+    if (!flinkConfig.contains(DeploymentOptionsInternal.CONF_DIR)) {
+      flinkConfig.safeSet(
+        DeploymentOptionsInternal.CONF_DIR,
+        s"${submitRequest.flinkVersion.flinkHome}/conf")
     }
 
     if (flinkConfig.get(KubernetesConfigOptions.NAMESPACE).isEmpty) {
       flinkConfig.removeConfig(KubernetesConfigOptions.NAMESPACE)
     }
 
-    logInfo(
-      s"""
-         |------------------------------------------------------------------
-         |Effective submit configuration: $flinkConfig
-         |------------------------------------------------------------------
-         |""".stripMargin)
+    logInfo(s"""
+               |------------------------------------------------------------------
+               |Effective submit configuration: $flinkConfig
+               |------------------------------------------------------------------
+               |""".stripMargin)
   }
 
   // Tip: Perhaps it would be better to let users freely specify the savepoint directory
   @throws[Exception]
-  override def doCancel(cancelRequest: CancelRequest, flinkConfig: Configuration): CancelResponse = {
-    executeClientAction(cancelRequest, flinkConfig, (jobId, clusterClient) => {
-      val actionResult = super.cancelJob(cancelRequest, jobId, clusterClient)
-      IngressController.deleteIngress(cancelRequest.clusterId, cancelRequest.kubernetesNamespace)
-      CancelResponse(actionResult)
-    })
+  override def doCancel(
+      cancelRequest: CancelRequest,
+      flinkConfig: Configuration): CancelResponse = {
+    executeClientAction(
+      cancelRequest,
+      flinkConfig,
+      (jobId, clusterClient) => {
+        val actionResult = super.cancelJob(cancelRequest, jobId, clusterClient)
+        CancelResponse(actionResult)
+      })
   }
 
-  private[this] def executeClientAction[O, R <: SavepointRequestTrait](request: R,
-                                                                       flinkConfig: Configuration,
-                                                                       actFunc: (JobID, ClusterClient[_]) => O): O = {
+  private[this] def executeClientAction[O, R <: SavepointRequestTrait](
+      request: R,
+      flinkConfig: Configuration,
+      actFunc: (JobID, ClusterClient[_]) => O): O = {
     val hints = s"[flink-client] execute ${request.getClass.getSimpleName} for flink job failed,"
     require(
       StringUtils.isNotBlank(request.clusterId),
-      s"${hints}, clusterId is null, mode=${flinkConfig.get(DeploymentOptions.TARGET)}")
+      s"$hints, clusterId is null, mode=${flinkConfig.get(DeploymentOptions.TARGET)}")
 
     flinkConfig
       .safeSet(KubernetesConfigOptions.CLUSTER_ID, request.clusterId)
@@ -100,11 +113,13 @@ trait KubernetesNativeClientTrait extends FlinkClientTrait {
 
     try {
       clusterDescriptor = getK8sClusterDescriptor(flinkConfig)
-      client = clusterDescriptor.retrieve(flinkConfig.getString(KubernetesConfigOptions.CLUSTER_ID)).getClusterClient
+      client = clusterDescriptor
+        .retrieve(flinkConfig.getString(KubernetesConfigOptions.CLUSTER_ID))
+        .getClusterClient
       actFunc(JobID.fromHexString(request.jobId), client)
     } catch {
       case e: Exception =>
-        logger.error(s"$hints mode=${flinkConfig.get(DeploymentOptions.TARGET)}, request=${request}")
+        logger.error(s"$hints mode=${flinkConfig.get(DeploymentOptions.TARGET)}, request=$request")
         throw e
     } finally {
       if (client != null) client.close()
@@ -113,12 +128,17 @@ trait KubernetesNativeClientTrait extends FlinkClientTrait {
   }
 
   @throws[Exception]
-  override def doTriggerSavepoint(request: TriggerSavepointRequest, flinkConfig: Configuration): SavepointResponse = {
-    executeClientAction(request, flinkConfig, (jobId, clusterClient) => {
-      val actionResult = super.triggerSavepoint(request, jobId, clusterClient)
-      IngressController.deleteIngress(request.clusterId, request.kubernetesNamespace)
-      SavepointResponse(actionResult)
-    })
+  override def doTriggerSavepoint(
+      savepointRequest: TriggerSavepointRequest,
+      flinkConfig: Configuration): SavepointResponse = {
+    executeClientAction(
+      savepointRequest,
+      flinkConfig,
+      (jobId, clusterClient) => {
+        val actionResult = super.triggerSavepoint(savepointRequest, jobId, clusterClient)
+        SavepointResponse(actionResult)
+      }
+    )
   }
 
   // noinspection DuplicatedCode
@@ -132,7 +152,8 @@ trait KubernetesNativeClientTrait extends FlinkClientTrait {
          the kubernetes context contents in the FlinkKubeClient.
      2. Specify an explicit key kubernetes.config.file in flinkConfig instead of the default value.
    */
-  def getK8sClusterDescriptorAndSpecification(flinkConfig: Configuration): (KubernetesClusterDescriptor, ClusterSpecification) = {
+  def getK8sClusterDescriptorAndSpecification(
+      flinkConfig: Configuration): (KubernetesClusterDescriptor, ClusterSpecification) = {
     val clientFactory = new KubernetesClusterClientFactory()
     val clusterDescriptor = clientFactory.createClusterDescriptor(flinkConfig)
     val clusterSpecification = clientFactory.getClusterSpecification(flinkConfig)
@@ -146,15 +167,17 @@ trait KubernetesNativeClientTrait extends FlinkClientTrait {
   }
 
   protected def flinkConfIdentifierInfo(@Nonnull conf: Configuration): String =
-    s"executionMode=${conf.get(DeploymentOptions.TARGET)}, clusterId=${conf.get(KubernetesConfigOptions.CLUSTER_ID)}, " +
+    s"executionMode=${conf.get(DeploymentOptions.TARGET)}, clusterId=${conf.get(
+        KubernetesConfigOptions.CLUSTER_ID)}, " +
       s"namespace=${conf.get(KubernetesConfigOptions.NAMESPACE)}"
 
-  private def covertToServiceExposedType(exposedType: FlinkK8sRestExposedType): ServiceExposedType = exposedType match {
-    case FlinkK8sRestExposedType.ClusterIP => ServiceExposedType.ClusterIP
-    case FlinkK8sRestExposedType.LoadBalancer => ServiceExposedType.LoadBalancer
-    case FlinkK8sRestExposedType.NodePort => ServiceExposedType.NodePort
-    case _ => ServiceExposedType.LoadBalancer
-  }
+  private def covertToServiceExposedType(exposedType: FlinkK8sRestExposedType): ServiceExposedType =
+    exposedType match {
+      case FlinkK8sRestExposedType.CLUSTER_IP => ServiceExposedType.ClusterIP
+      case FlinkK8sRestExposedType.LOAD_BALANCER => ServiceExposedType.LoadBalancer
+      case FlinkK8sRestExposedType.NODE_PORT => ServiceExposedType.NodePort
+      case _ => ServiceExposedType.LoadBalancer
+    }
 
   def getDefaultKubernetesConf(k8sConf: String): String = {
     val homePath: String = System.getProperty("user.home")

@@ -21,19 +21,19 @@ import org.apache.streampark.common.util.DateUtils;
 import org.apache.streampark.console.base.domain.RestRequest;
 import org.apache.streampark.console.base.domain.RestResponse;
 import org.apache.streampark.console.base.exception.AlertException;
-import org.apache.streampark.console.core.bean.AlertConfigWithParams;
+import org.apache.streampark.console.core.bean.AlertConfigParams;
 import org.apache.streampark.console.core.bean.AlertTemplate;
 import org.apache.streampark.console.core.entity.AlertConfig;
 import org.apache.streampark.console.core.service.alert.AlertConfigService;
 import org.apache.streampark.console.core.service.alert.AlertService;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiImplicitParam;
-import io.swagger.annotations.ApiImplicitParams;
-import io.swagger.annotations.ApiOperation;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.Parameters;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -48,101 +48,71 @@ import java.util.Date;
 import java.util.List;
 import java.util.TimeZone;
 
-@Api(tags = {"ALERT_TAG"})
+@Tag(name = "ALERT_TAG")
 @Slf4j
 @Validated
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/flink/alert")
 public class AlertController {
 
-  @Autowired private AlertConfigService alertConfigService;
+  private final AlertConfigService alertConfigService;
 
-  @Autowired private AlertService alertService;
+  private final AlertService alertService;
 
-  @ApiOperation(value = "Create alert config")
+  @Operation(summary = "Create alert config")
   @PostMapping(value = "/add")
-  public RestResponse createAlertConfig(@RequestBody AlertConfigWithParams params) {
+  public RestResponse createAlertConfig(@RequestBody AlertConfigParams params) {
     boolean save = alertConfigService.save(AlertConfig.of(params));
     return RestResponse.success(save);
   }
 
-  @ApiOperation(value = "Exist alert config")
+  @Operation(summary = "Check alert config exist")
   @PostMapping(value = "/exists")
-  public RestResponse existsAlertConfig(@RequestBody AlertConfigWithParams params) {
+  public RestResponse verifyAlertConfig(@RequestBody AlertConfigParams params) {
     boolean exist = alertConfigService.exist(AlertConfig.of(params));
     return RestResponse.success(exist);
   }
 
-  @ApiOperation(value = "Update alert config")
+  @Operation(summary = "Update alert config")
   @PostMapping(value = "/update")
-  public RestResponse updateAlertConfig(@RequestBody AlertConfigWithParams params) {
+  public RestResponse updateAlertConfig(@RequestBody AlertConfigParams params) {
     boolean update = alertConfigService.updateById(AlertConfig.of(params));
     return RestResponse.success(update);
   }
 
-  @ApiOperation(value = "Get alert config")
+  @Operation(summary = "Get alert config")
   @PostMapping("/get")
-  public RestResponse getAlertConfig(@RequestBody AlertConfigWithParams params) {
+  public RestResponse getAlertConfig(@RequestBody AlertConfigParams params) {
     AlertConfig alertConfig = alertConfigService.getById(params.getId());
-    return RestResponse.success(AlertConfigWithParams.of(alertConfig));
+    return RestResponse.success(AlertConfigParams.of(alertConfig));
   }
 
-  @ApiOperation(value = "List alert configs(Pagination)")
-  @ApiImplicitParams({
-    @ApiImplicitParam(
-        name = "pageSize",
-        value = "page size",
-        required = true,
-        example = "10",
-        dataTypeClass = Integer.class),
-    @ApiImplicitParam(
-        name = "pageNum",
-        value = "page num",
-        required = true,
-        example = "1",
-        dataTypeClass = Integer.class),
-    @ApiImplicitParam(
-        name = "sortField",
-        value = "sort field",
-        dataType = "string",
-        dataTypeClass = String.class),
-    @ApiImplicitParam(
-        name = "sortOrder",
-        value = "sort order",
-        dataType = "string",
-        dataTypeClass = String.class)
-  })
+  @Operation(summary = "List alert configs (Pagination)")
   @PostMapping(value = "/list")
-  public RestResponse listPageAlertConfigs(
-      @RequestBody AlertConfigWithParams params, RestRequest request) {
-    IPage<AlertConfigWithParams> page = alertConfigService.page(params, request);
+  public RestResponse alertConfigsPaginationList(
+      @RequestBody AlertConfigParams params, RestRequest request) {
+    IPage<AlertConfigParams> page = alertConfigService.page(params.getUserId(), request);
     return RestResponse.success(page);
   }
 
-  @ApiOperation(value = "List alert configs")
+  @Operation(summary = "List alert configs")
   @PostMapping(value = "/listWithOutPage")
-  public RestResponse listAlertConfigs() {
+  public RestResponse alertConfigsList() {
     List<AlertConfig> page = alertConfigService.list();
     return RestResponse.success(page);
   }
 
-  @ApiOperation(value = "Delete alert config")
-  @ApiImplicitParams({
-    @ApiImplicitParam(
-        name = "id",
-        value = "config id",
-        required = true,
-        paramType = "query",
-        dataTypeClass = Long.class)
-  })
+  @Operation(summary = "Delete alert config")
+  @Parameters({@Parameter(name = "id", required = true, description = "config id")})
   @DeleteMapping("/delete")
   public RestResponse deleteAlertConfig(
       @RequestParam("id") @NotNull(message = "config id must be not null") Long id) {
-    boolean result = alertConfigService.deleteById(id);
+    boolean result = alertConfigService.removeById(id);
     return RestResponse.success(result);
   }
 
-  /** TODO after remove to unit test */
+  @Operation(summary = "Send alert config")
   @PostMapping("/send")
   public RestResponse sendAlert(Long id) throws AlertException {
     AlertTemplate alertTemplate = new AlertTemplate();
@@ -157,8 +127,6 @@ public class AlertController {
         DateUtils.format(date, DateUtils.fullFormat(), TimeZone.getDefault()));
     alertTemplate.setEndTime(DateUtils.format(date, DateUtils.fullFormat(), TimeZone.getDefault()));
     alertTemplate.setDuration("");
-    boolean alert =
-        alertService.alert(AlertConfigWithParams.of(alertConfigService.getById(id)), alertTemplate);
-    return RestResponse.success(alert);
+    return RestResponse.success(alertService.alert(id, alertTemplate));
   }
 }

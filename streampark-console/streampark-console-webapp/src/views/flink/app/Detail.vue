@@ -18,8 +18,8 @@
   import { defineComponent } from 'vue';
   import { AppStateEnum, ExecModeEnum } from '/@/enums/flinkEnum';
   import { useI18n } from '/@/hooks/web/useI18n';
-  import { fetchAppExternalLink } from '/@/api/flink/setting/externalLink';
-  import { ExternalLink } from '/@/api/flink/setting/types/externalLink.type';
+  import { fetchAppExternalLink } from '/@/api/setting/externalLink';
+  import { ExternalLink } from '/@/api/setting/types/externalLink.type';
   export default defineComponent({
     name: 'ApplicationDetail',
   });
@@ -29,24 +29,24 @@
   import { Description, useDescription } from '/@/components/Description';
   import { Icon } from '/@/components/Icon';
   import { useRoute, useRouter } from 'vue-router';
-  import { fetchBackUps, fetchGet, fetchOptionLog, fetchYarn } from '/@/api/flink/app/app';
+  import { fetchBackUps, fetchGet, fetchOptionLog, fetchYarn } from '/@/api/flink/app';
   import { onUnmounted, reactive, h, unref, ref, onMounted, computed } from 'vue';
   import { useIntervalFn, useClipboard } from '@vueuse/core';
-  import { AppListRecord } from '/@/api/flink/app/app.type';
+  import { AppListRecord } from '/@/api/flink/app.type';
   import { Tooltip, Divider, Space } from 'ant-design-vue';
   import { handleView } from './utils';
   import { Button } from '/@/components/Button';
   import { getDescSchema } from './data/detail.data';
   import { fetchCheckToken, fetchCopyCurl } from '/@/api/system/token';
   import { useMessage } from '/@/hooks/web/useMessage';
-  import { baseUrl } from '/@/api/index';
+  import { baseUrl } from '/@/api';
   import { fetchListVer } from '/@/api/flink/config';
-  import { fetchSavePonitHistory } from '/@/api/flink/app/savepoint';
+  import { fetchSavePonitHistory } from '/@/api/flink/savepoint';
   import Mergely from './components/Mergely.vue';
   import DetailTab from './components/AppDetail/DetailTab.vue';
   import { createDetailProviderContext } from './hooks/useDetailContext';
   import { useDrawer } from '/@/components/Drawer';
-  import ExternalLinkBadge from '../setting/components/ExternalLinkBadge.vue';
+  import { LinkBadge } from '/@/components/LinkBadge';
 
   const route = useRoute();
   const router = useRouter();
@@ -218,7 +218,7 @@
 
   /* Documentation page */
   function handleDocPage() {
-    const res = window.origin.split(':')[1] + ':10000/doc.html';
+    const res = window.origin + '/doc.html';
     window.open(res);
   }
 
@@ -245,12 +245,11 @@
       <span class="app-bar">{{ t('flink.app.detail.detailTitle') }}</span>
       <Space class="-mt-8px">
         <div v-for="link in externalLinks" :key="link.id">
-          <ExternalLinkBadge
+          <LinkBadge
             :label="link.badgeLabel"
             :redirect="link.renderedLinkUrl"
             :color="link.badgeColor"
             :message="link.badgeName"
-            :openLink="true"
             :disabled="appNotRunning"
           />
         </div>
@@ -259,7 +258,7 @@
         <Icon icon="ant-design:arrow-left-outlined" />
       </a-button>
       <a-button
-        type="danger"
+        type="primary"
         @click="handleFlinkView"
         :disabled="appNotRunning"
         class="float-right -mt-8px mr-20px"

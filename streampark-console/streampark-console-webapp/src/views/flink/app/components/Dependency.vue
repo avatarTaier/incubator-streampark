@@ -30,8 +30,8 @@
   import { useMonaco } from '/@/hooks/web/useMonaco';
   import { Select, Tabs, Alert, Tag, Space, Form } from 'ant-design-vue';
   import { useMessage } from '/@/hooks/web/useMessage';
-  import { fetchUpload } from '/@/api/flink/app/app';
-  import { fetchUploadJars } from '/@/api/flink/app/flinkHistory';
+  import { fetchUpload } from '/@/api/flink/app';
+  import { fetchUploadJars } from '/@/api/flink/flinkHistory';
   import UploadJobJar from './UploadJobJar.vue';
 
   interface DependencyType {
@@ -39,6 +39,7 @@
     exclusions: string[];
     groupId: string;
     version: string;
+    classifier: string;
   }
 
   const TabPane = Tabs.TabPane;
@@ -73,7 +74,7 @@
   const { t } = useI18n();
   const defaultValue = '';
   const { Swal } = useMessage();
-  const { onChange, setContent } = useMonaco(pomBox, {
+  const { onChange, setContent, getContent } = useMonaco(pomBox, {
     language: 'xml',
     code: props.value || defaultValue,
     options: {
@@ -95,15 +96,18 @@
     const groupExp = /<groupId>([\s\S]*?)<\/groupId>/;
     const artifactExp = /<artifactId>([\s\S]*?)<\/artifactId>/;
     const versionExp = /<version>([\s\S]*?)<\/version>/;
+    const classifierExp = /<classifier>([\s\S]*?)<\/classifier>/;
     const exclusionsExp = /<exclusions>([\s\S]*?)<\/exclusions>/;
     const invalidArtifact: Array<string> = [];
-    props.value
+    const propsValue = await getContent();
+    propsValue
       .split('</dependency>')
       .filter((x) => x.replace(/\\s+/, '') !== '')
       .forEach((dep) => {
         const groupId = dep.match(groupExp) ? groupExp.exec(dep)![1].trim() : null;
         const artifactId = dep.match(artifactExp) ? artifactExp.exec(dep)![1].trim() : null;
         const version = dep.match(versionExp) ? versionExp.exec(dep)![1].trim() : null;
+        const classifier = dep.match(classifierExp) ? classifierExp.exec(dep)![1].trim() : null;
         const exclusion = dep.match(exclusionsExp) ? exclusionsExp.exec(dep)![1].trim() : null;
         if (groupId != null && artifactId != null && version != null) {
           if (/flink-(.*)_(.*)/.test(artifactId)) {
@@ -113,12 +117,15 @@
             }
           }
           if (invalidArtifact.length === 0) {
-            const id = groupId + '_' + artifactId;
             const mvnPom: Recordable = {
               groupId: groupId,
               artifactId: artifactId,
               version: version,
             };
+            if (classifier != null) {
+              mvnPom.classifier = classifier;
+            }
+            const id = getId(mvnPom);
             const pomExclusion = {};
             if (exclusion != null) {
               const exclusions = exclusion.split('<exclusion>');
@@ -220,7 +227,7 @@
     handleUpdateDependency();
   }
   function handleRemovePom(pom: Recordable) {
-    const id = pom.groupId + '_' + pom.artifactId;
+    const id = getId(pom);
     delete dependency.pom[id];
     handleUpdateDependency();
   }
@@ -234,8 +241,10 @@
   function setDefaultValue(dataSource: { pom?: DependencyType[]; jar?: string[] }) {
     dependencyRecords.value = dataSource.pom || [];
     uploadJars.value = dataSource.jar || [];
+    dependency.pom = {};
+    dependency.jar = {};
     dataSource.pom?.map((pomRecord: DependencyType) => {
-      const id = pomRecord.groupId + '_' + pomRecord.artifactId;
+      const id = getId(pomRecord);
       dependency.pom[id] = pomRecord;
     });
     dataSource.jar?.map((fileName: string) => {
@@ -250,6 +259,14 @@
     delete dependency.jar[item];
     handleUpdateDependency();
   }
+
+  function getId(pom) {
+    if (pom.classifier != null) {
+      return pom.groupId + '_' + pom.artifactId + '_' + pom.classifier;
+    }
+    return pom.groupId + '_' + pom.artifactId;
+  }
+
   onMounted(() => {
     handleReloadHistoryUploads();
   });
@@ -316,7 +333,10 @@
       <template #message>
         <Space @click="handleEditPom(dept)" class="tag-dependency-pom">
           <Tag class="tag-dependency" color="#2db7f5">POM</Tag>
-          {{ dept.artifactId }}-{{ dept.version }}.jar
+          <template v-if="dept.classifier != null">
+            {{ dept.artifactId }}-{{ dept.version }}-{{ dept.classifier }}.jar
+          </template>
+          <template v-else> {{ dept.artifactId }}-{{ dept.version }}.jar </template>
           <Icon
             :size="12"
             icon="ant-design:close-outlined"

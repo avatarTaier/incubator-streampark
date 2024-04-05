@@ -17,8 +17,9 @@
 
 package org.apache.streampark.console.system.entity;
 
-import org.apache.streampark.common.conf.ConfigConst;
-import org.apache.streampark.console.core.enums.UserType;
+import org.apache.streampark.common.Constant;
+import org.apache.streampark.console.core.enums.LoginTypeEnum;
+import org.apache.streampark.console.core.enums.UserTypeEnum;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -36,21 +37,19 @@ import java.util.Date;
 @TableName("t_user")
 public class User implements Serializable {
 
-  private static final long serialVersionUID = -4852732617765810959L;
+  private static final long serialVersionUID = 1L;
   /** user status */
   public static final String STATUS_VALID = "1";
 
   public static final String STATUS_LOCK = "0";
 
-  public static final String DEFAULT_AVATAR = "default.jpg";
-
   public static final String SEX_MALE = "0";
 
   public static final String SEX_FEMALE = "1";
 
-  public static final String SEX_UNKNOW = "2";
+  public static final String SEX_UNKNOWN = "2";
 
-  public static final String DEFAULT_PASSWORD = "streampark666";
+  public static final Integer DEFAULT_PASSWORD_LENGTH = 8;
 
   @TableId(type = IdType.AUTO)
   private Long userId;
@@ -64,7 +63,9 @@ public class User implements Serializable {
   @Email(message = "{email}")
   private String email;
 
-  private UserType userType;
+  private UserTypeEnum userType;
+
+  private LoginTypeEnum loginType;
 
   @NotBlank(message = "{required}")
   private String status;
@@ -81,13 +82,7 @@ public class User implements Serializable {
   @Size(max = 100, message = "{noMoreThan}")
   private String description;
 
-  private String avatar;
-
   private transient String oldPassword;
-
-  private transient String sortField;
-
-  private transient String sortOrder;
 
   private transient String createTimeFrom;
   private transient String createTimeTo;
@@ -102,7 +97,7 @@ public class User implements Serializable {
   private Long lastTeamId;
 
   public void dataMasking() {
-    String dataMask = ConfigConst.DEFAULT_DATAMASK_STRING();
+    String dataMask = Constant.DEFAULT_DATAMASK_STRING;
     this.setPassword(dataMask);
     this.setSalt(dataMask);
   }

@@ -17,9 +17,9 @@
 import { Alert, Form, Input, Tag } from 'ant-design-vue';
 import { h, onMounted, reactive, ref, unref, VNode } from 'vue';
 import { handleAppBuildStatueText } from '../utils';
-import { fetchCheckName, fetchCopy, fetchForcedStop, fetchMapping } from '/@/api/flink/app/app';
-import { fetchBuild, fetchBuildDetail } from '/@/api/flink/app/flinkBuild';
-import { fetchSavePonitHistory } from '/@/api/flink/app/savepoint';
+import { fetchCheckName, fetchCopy, fetchForcedStop, fetchMapping } from '/@/api/flink/app';
+import { fetchBuild, fetchBuildDetail } from '/@/api/flink/flinkBuild';
+import { fetchSavePonitHistory } from '/@/api/flink/savepoint';
 import { fetchAppOwners } from '/@/api/system/user';
 import { SvgIcon } from '/@/components/Icon';
 import { AppStateEnum, ExecModeEnum, OptionStateEnum } from '/@/enums/flinkEnum';
@@ -226,7 +226,7 @@ export const useFlinkApplication = (openStartModal: Fn) => {
       ],
       content: () => {
         return (
-          <Form class="!pt-30px">
+          <Form class="!pt-50px">
             <Form.Item
               label="Application Name"
               labelCol={{ lg: { span: 7 }, sm: { span: 7 } }}
@@ -246,8 +246,8 @@ export const useFlinkApplication = (openStartModal: Fn) => {
           </Form>
         );
       },
-      okText: 'Apply',
-      cancelText: 'Close',
+      okText: t('common.apply'),
+      cancelText: t('common.closeText'),
       onOk: async () => {
         //1) check empty
         if (copyAppName == null) {
@@ -301,7 +301,7 @@ export const useFlinkApplication = (openStartModal: Fn) => {
   }
 
   /* mapping */
-  function handleMapping(app) {
+  function handleMapping(app: Recordable) {
     const mappingRef = ref();
     const formValue = reactive<any>({});
     createConfirm({
@@ -349,8 +349,8 @@ export const useFlinkApplication = (openStartModal: Fn) => {
           </Form>
         );
       },
-      okText: 'Apply',
-      cancelText: 'Close',
+      okText: t('common.apply'),
+      cancelText: t('common.closeText'),
       onOk: async () => {
         try {
           await mappingRef.value.validate();

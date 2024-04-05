@@ -19,12 +19,17 @@ package org.apache.streampark.console.core.controller;
 
 import org.apache.streampark.common.util.HadoopUtils;
 import org.apache.streampark.console.base.domain.RestResponse;
+import org.apache.streampark.console.core.bean.DockerConfig;
+import org.apache.streampark.console.core.bean.ResponseResult;
+import org.apache.streampark.console.core.bean.SenderEmail;
 import org.apache.streampark.console.core.entity.Setting;
 import org.apache.streampark.console.core.service.SettingService;
 
 import org.apache.shiro.authz.annotation.RequiresPermissions;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
@@ -34,14 +39,16 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+@Tag(name = "SETTING_TAG")
 @Slf4j
 @Validated
 @RestController
-@RequestMapping("flink/setting")
+@RequestMapping("setting")
 public class SettingController {
 
   @Autowired private SettingService settingService;
 
+  @Operation(summary = "List settings")
   @PostMapping("all")
   @RequiresPermissions("setting:view")
   public RestResponse all() {
@@ -51,18 +58,14 @@ public class SettingController {
     return RestResponse.success(setting);
   }
 
+  @Operation(summary = "Get setting")
   @PostMapping("get")
   public RestResponse get(String key) {
     Setting setting = settingService.get(key);
     return RestResponse.success(setting);
   }
 
-  @PostMapping("weburl")
-  public RestResponse webUrl() {
-    String url = settingService.getStreamParkAddress();
-    return RestResponse.success(url == null ? null : url.trim());
-  }
-
+  @Operation(summary = "Update setting")
   @PostMapping("update")
   @RequiresPermissions("setting:update")
   public RestResponse update(Setting setting) {
@@ -70,7 +73,56 @@ public class SettingController {
     return RestResponse.success(updated);
   }
 
-  @PostMapping("checkHadoop")
+  @Operation(summary = "get Docker config")
+  @PostMapping("docker")
+  @RequiresPermissions("setting:view")
+  public RestResponse docker() {
+    DockerConfig dockerConfig = DockerConfig.fromSetting();
+    return RestResponse.success(dockerConfig);
+  }
+
+  @Operation(summary = "check docker setting")
+  @PostMapping("check/docker")
+  @RequiresPermissions("setting:view")
+  public RestResponse checkDocker(DockerConfig dockerConfig) {
+    ResponseResult result = settingService.checkDocker(dockerConfig);
+    return RestResponse.success(result);
+  }
+
+  @Operation(summary = "Update docker setting")
+  @PostMapping("update/docker")
+  @RequiresPermissions("setting:update")
+  public RestResponse updateDocker(DockerConfig dockerConfig) {
+    boolean updated = settingService.updateDocker(dockerConfig);
+    return RestResponse.success(updated);
+  }
+
+  @Operation(summary = "get sender email")
+  @PostMapping("email")
+  @RequiresPermissions("setting:view")
+  public RestResponse email() {
+    SenderEmail senderEmail = settingService.getSenderEmail();
+    return RestResponse.success(senderEmail);
+  }
+
+  @Operation(summary = "check email")
+  @PostMapping("check/email")
+  @RequiresPermissions("setting:view")
+  public RestResponse checkEmail(SenderEmail senderEmail) {
+    ResponseResult result = settingService.checkEmail(senderEmail);
+    return RestResponse.success(result);
+  }
+
+  @Operation(summary = "Update sender email")
+  @PostMapping("update/email")
+  @RequiresPermissions("setting:update")
+  public RestResponse updateEmail(SenderEmail senderEmail) {
+    boolean updated = settingService.updateEmail(senderEmail);
+    return RestResponse.success(updated);
+  }
+
+  @Operation(summary = "Check hadoop status")
+  @PostMapping("check/hadoop")
   public RestResponse checkHadoop() {
     try {
       HadoopUtils.hdfs().getStatus();

@@ -19,7 +19,7 @@ package org.apache.streampark.console.core.service.alert.impl;
 
 import org.apache.streampark.console.base.exception.AlertException;
 import org.apache.streampark.console.base.util.FreemarkerUtils;
-import org.apache.streampark.console.core.bean.AlertConfigWithParams;
+import org.apache.streampark.console.core.bean.AlertConfigParams;
 import org.apache.streampark.console.core.bean.AlertHttpCallbackParams;
 import org.apache.streampark.console.core.bean.AlertTemplate;
 import org.apache.streampark.console.core.service.alert.AlertNotifyService;
@@ -41,6 +41,8 @@ import org.springframework.web.client.RequestCallback;
 import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestTemplate;
 
+import javax.annotation.Nonnull;
+
 import java.util.Map;
 
 @Slf4j
@@ -52,7 +54,7 @@ public class HttpCallbackAlertNotifyServiceImpl implements AlertNotifyService {
   @Autowired private ObjectMapper mapper;
 
   @Override
-  public boolean doAlert(AlertConfigWithParams alertConfig, AlertTemplate alertTemplate)
+  public boolean doAlert(AlertConfigParams alertConfig, AlertTemplate alertTemplate)
       throws AlertException {
     AlertHttpCallbackParams alertHttpCallbackParams = alertConfig.getHttpCallbackParams();
 
@@ -74,27 +76,10 @@ public class HttpCallbackAlertNotifyServiceImpl implements AlertNotifyService {
     }
   }
 
-  private Object sendMessage(AlertHttpCallbackParams params, Map<String, Object> body)
+  private void sendMessage(AlertHttpCallbackParams params, Map<String, Object> body)
       throws AlertException {
     String url = params.getUrl();
-    HttpHeaders headers = new HttpHeaders();
-    String contentType = params.getContentType();
-    MediaType mediaType = MediaType.APPLICATION_JSON;
-    if (StringUtils.hasLength(contentType)) {
-      switch (contentType.toLowerCase()) {
-        case MediaType.APPLICATION_FORM_URLENCODED_VALUE:
-          mediaType = MediaType.APPLICATION_FORM_URLENCODED;
-          break;
-        case MediaType.MULTIPART_FORM_DATA_VALUE:
-          mediaType = MediaType.MULTIPART_FORM_DATA;
-          break;
-        case MediaType.APPLICATION_JSON_VALUE:
-        default:
-          break;
-      }
-    }
-    headers.setContentType(mediaType);
-
+    HttpHeaders headers = getHttpHeaders(params);
     ResponseEntity<Object> response;
     try {
       HttpMethod httpMethod = HttpMethod.POST;
@@ -112,13 +97,33 @@ public class HttpCallbackAlertNotifyServiceImpl implements AlertNotifyService {
     } catch (Exception e) {
       log.error("Failed to request httpCallback alert,\nurl:{}", url, e);
       throw new AlertException(
-          String.format("Failed to request httpCallback alert,\nurl:%s", url), e);
+          String.format("Failed to request httpCallback alert,%nurl:%s", url), e);
     }
 
     if (response == null) {
-      throw new AlertException(String.format("Failed to request httpCallback alert,\nurl:%s", url));
+      throw new AlertException(String.format("Failed to request httpCallback alert,%nurl:%s", url));
     }
+  }
 
-    return response;
+  @Nonnull
+  private HttpHeaders getHttpHeaders(AlertHttpCallbackParams params) {
+    HttpHeaders headers = new HttpHeaders();
+    String contentType = params.getContentType();
+    MediaType mediaType = MediaType.APPLICATION_JSON;
+    if (StringUtils.hasLength(contentType)) {
+      switch (contentType.toLowerCase()) {
+        case MediaType.APPLICATION_FORM_URLENCODED_VALUE:
+          mediaType = MediaType.APPLICATION_FORM_URLENCODED;
+          break;
+        case MediaType.MULTIPART_FORM_DATA_VALUE:
+          mediaType = MediaType.MULTIPART_FORM_DATA;
+          break;
+        case MediaType.APPLICATION_JSON_VALUE:
+        default:
+          break;
+      }
+    }
+    headers.setContentType(mediaType);
+    return headers;
   }
 }

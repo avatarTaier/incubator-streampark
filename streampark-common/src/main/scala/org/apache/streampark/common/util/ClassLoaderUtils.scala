@@ -16,11 +16,13 @@
  */
 package org.apache.streampark.common.util
 
-import java.io.File
+import org.apache.streampark.common.Constant
+
+import java.io.{File, IOException}
 import java.net.{URL, URLClassLoader}
 import java.util.function.Supplier
 
-import scala.util.Try
+import scala.collection.mutable.ArrayBuffer
 
 object ClassLoaderUtils extends Logger {
 
@@ -63,22 +65,37 @@ object ClassLoaderUtils extends Logger {
       Thread.currentThread.setContextClassLoader(originalClassLoader)
     }
   }
+  @throws[IOException]
+  def cloneClassLoader(): ClassLoader = {
+    val urls = originalClassLoader.getResources(".")
+    val buffer = ArrayBuffer[URL]()
+    while (urls.hasMoreElements) {
+      buffer += urls.nextElement()
+    }
+    new URLClassLoader(buffer.toArray[URL], originalClassLoader)
+  }
 
   def loadJar(jarFilePath: String): Unit = {
     val jarFile = new File(jarFilePath)
-    require(jarFile.exists, s"[StreamPark] ClassLoaderUtils.loadJar: jarFilePath $jarFilePath is not exists")
-    require(jarFile.isFile, s"[StreamPark] ClassLoaderUtils.loadJar: jarFilePath $jarFilePath is not file")
+    require(
+      jarFile.exists,
+      s"[StreamPark] ClassLoaderUtils.loadJar: jarFilePath $jarFilePath is not exists")
+    require(
+      jarFile.isFile,
+      s"[StreamPark] ClassLoaderUtils.loadJar: jarFilePath $jarFilePath is not file")
     loadPath(jarFile.getAbsolutePath)
   }
 
   def loadJars(path: String): Unit = {
     val jarDir = new File(path)
     require(jarDir.exists, s"[StreamPark] ClassLoaderUtils.loadJars: jarPath $path is not exists")
-    require(jarDir.isDirectory, s"[StreamPark] ClassLoaderUtils.loadJars: jarPath $path is not directory")
-    require(jarDir.listFiles.length > 0, s"[StreamPark] ClassLoaderUtils.loadJars: have not jar in path:$path")
-    jarDir.listFiles.foreach { x =>
-      loadPath(x.getAbsolutePath)
-    }
+    require(
+      jarDir.isDirectory,
+      s"[StreamPark] ClassLoaderUtils.loadJars: jarPath $path is not directory")
+    require(
+      jarDir.listFiles.length > 0,
+      s"[StreamPark] ClassLoaderUtils.loadJars: have not jar in path:$path")
+    jarDir.listFiles.foreach(x => loadPath(x.getAbsolutePath))
   }
 
   def loadResource(filepath: String): Unit = {
@@ -91,7 +108,9 @@ object ClassLoaderUtils extends Logger {
     loopDirs(file)
   }
 
-  private[this] def loadPath(filepath: String, ext: List[String] = List(".jar", ".zip")): Unit = {
+  private[this] def loadPath(
+      filepath: String,
+      ext: List[String] = List(Constant.JAR_SUFFIX, Constant.ZIP_SUFFIX)): Unit = {
     val file = new File(filepath)
     loopFiles(file, ext)
   }
@@ -110,7 +129,7 @@ object ClassLoaderUtils extends Logger {
       if (ext.isEmpty) {
         addURL(file)
       } else if (ext.exists(x => file.getName.endsWith(x))) {
-        Utils.checkJarFile(file.toURI.toURL)
+        Utils.requireCheckJarFile(file.toURI.toURL)
         addURL(file)
       }
     }

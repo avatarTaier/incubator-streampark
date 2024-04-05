@@ -35,7 +35,7 @@ const __APP_INFO__ = {
   lastBuildTime: dayjs().format('YYYY-MM-DD HH:mm:ss'),
 };
 const prefix = 'monaco-editor/esm/vs';
-export default ({ command, mode }: ConfigEnv): UserConfig => {
+export default async ({ command, mode }: ConfigEnv): Promise<UserConfig> => {
   const root = process.cwd();
 
   const env = loadEnv(mode, root);
@@ -83,29 +83,16 @@ export default ({ command, mode }: ConfigEnv): UserConfig => {
       target: 'es2015',
       cssTarget: 'chrome80',
       outDir: OUTPUT_DIR,
-      // minify: 'terser',
-      /**
-       * When minify="minify:'terser'" unwraps the comment
-       * Uncomment when minify="minify:'terser'"
-       */
-      // terserOptions: {
-      //   compress: {
-      //     keep_infinity: true,
-      //     drop_console: VITE_DROP_CONSOLE,
-      //   },
-      // },
       // Turning off brotliSize display can slightly reduce packaging time
       reportCompressedSize: false,
       chunkSizeWarningLimit: 2000,
       // monaco editor
       rollupOptions: {
+        maxParallelFileOps: 3,
         output: {
           manualChunks: {
-            jsonWorker: [`${prefix}/language/json/json.worker`],
-            cssWorker: [`${prefix}/language/css/css.worker`],
-            htmlWorker: [`${prefix}/language/html/html.worker`],
-            tsWorker: [`${prefix}/language/typescript/ts.worker`],
-            editorWorker: [`${prefix}/editor/editor.worker`],
+            vue: ['vue', 'pinia', 'vue-router'],
+            antd: ['ant-design-vue', '@ant-design/icons-vue'],
           },
         },
       },
@@ -130,7 +117,7 @@ export default ({ command, mode }: ConfigEnv): UserConfig => {
     },
 
     // The vite plugin used by the project. The quantity is large, so it is separately extracted and managed
-    plugins: createVitePlugins(viteEnv, isBuild),
+    plugins: await createVitePlugins(viteEnv, isBuild),
 
     optimizeDeps: {
       // @iconify/iconify: The dependency is dynamically and virtually loaded by @purge-icons/generated, so it needs to be specified explicitly
@@ -140,6 +127,11 @@ export default ({ command, mode }: ConfigEnv): UserConfig => {
         '@iconify/iconify',
         'ant-design-vue/es/locale/zh_CN',
         'ant-design-vue/es/locale/en_US',
+        `${prefix}/language/json/json.worker`,
+        `${prefix}/language/css/css.worker`,
+        `${prefix}/language/html/html.worker`,
+        `${prefix}/language/typescript/ts.worker`,
+        `${prefix}/editor/editor.worker`,
       ],
     },
   };

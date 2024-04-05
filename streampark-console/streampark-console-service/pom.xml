@@ -23,7 +23,7 @@
     <parent>
         <groupId>org.apache.streampark</groupId>
         <artifactId>streampark-console</artifactId>
-        <version>2.1.0-SNAPSHOT</version>
+        <version>2.2.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>streampark-console-service</artifactId>
@@ -33,19 +33,26 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <postgresql.version>42.5.0</postgresql.version>
-        <mybatis-plus.version>3.5.2</mybatis-plus.version>
+        <postgresql.version>42.5.1</postgresql.version>
+        <mybatis-plus.version>3.5.3.1</mybatis-plus.version>
         <streampark.flink.shims.version>1.14</streampark.flink.shims.version>
         <frontend.project.name>streampark-console-webapp</frontend.project.name>
         <PermGen>64m</PermGen>
         <MaxPermGen>512m</MaxPermGen>
         <CodeCacheSize>512m</CodeCacheSize>
 
-        <swagger-bootstrap.version>2.0.9</swagger-bootstrap.version>
-        <springfox.version>3.0.0</springfox.version>
+        <knife4j-openapi3.version>4.0.0</knife4j-openapi3.version>
+        <springdoc-openapi-ui.version>1.6.9</springdoc-openapi-ui.version>
         <commons-compress.version>1.21</commons-compress.version>
         <javax-mail.version>1.4.7</javax-mail.version>
         <shiro.version>1.10.0</shiro.version>
+        <jsch.version>0.2.11</jsch.version>
+
+        <!-- Pac4j 4.x for jdk 8 -->
+        <pac4jVersion>4.5.7</pac4jVersion>
+        <!-- buji-pac4j 5.x for jdk 8-->
+        <bujiVersion>5.0.1</bujiVersion>
+
         <p6spy.version>3.9.1</p6spy.version>
         <freemarker.version>2.3.30</freemarker.version>
         <commons-email.version>1.5</commons-email.version>
@@ -61,7 +68,7 @@
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>
-                <version>2.7.3</version>
+                <version>2.7.11</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -123,17 +130,6 @@
         <!--spring-->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter</artifactId>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-starter-logging</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
             <exclusions>
                 <exclusion>
@@ -154,17 +150,7 @@
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-websocket</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
         <dependency>
@@ -172,26 +158,11 @@
             <artifactId>spring-ldap-core</artifactId>
         </dependency>
 
-        <!-- shiro-spring -->
-        <dependency>
-            <groupId>org.apache.shiro</groupId>
-            <artifactId>shiro-spring</artifactId>
-            <version>${shiro.version}</version>
-        </dependency>
-
-        <!-- spring cache -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-cache</artifactId>
-        </dependency>
-
-        <!-- aop -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-aop</artifactId>
         </dependency>
 
-        <!-- quartz -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-quartz</artifactId>
@@ -202,6 +173,70 @@
                 </exclusion>
             </exclusions>
         </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.junit.jupiter</groupId>
+                    <artifactId>junit-jupiter</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- springboot end -->
+
+
+        <!-- shiro-spring -->
+        <dependency>
+            <groupId>org.apache.shiro</groupId>
+            <artifactId>shiro-spring</artifactId>
+            <version>${shiro.version}</version>
+            <exclusions>
+                <exclusion>
+                    <artifactId>commons-beanutils</artifactId>
+                    <groupId>commons-beanutils</groupId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- pac4j for SSO-->
+        <dependency>
+            <groupId>io.buji</groupId>
+            <artifactId>buji-pac4j</artifactId>
+            <version>${bujiVersion}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.pac4j</groupId>
+                    <artifactId>pac4j-core</artifactId>
+                </exclusion>
+            </exclusions>
+
+        </dependency>
+        <!-- Include pac4j-config/core/oauth/oidc-->
+        <dependency>
+            <groupId>org.pac4j</groupId>
+            <artifactId>pac4j-springboot</artifactId>
+            <version>${pac4jVersion}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>commons-collections</groupId>
+                    <artifactId>commons-collections</artifactId>
+                </exclusion>
+                <!-- cas & opensaml is not supported-->
+                <exclusion>
+                    <groupId>org.pac4j</groupId>
+                    <artifactId>pac4j-cas</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.pac4j</groupId>
+                    <artifactId>pac4j-saml-opensamlv3</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
 
         <!-- mybatis-plus -->
         <dependency>
@@ -235,6 +270,12 @@
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <version>${postgresql.version}</version>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
             <optional>true</optional>
         </dependency>
 
@@ -283,50 +324,35 @@
         <!-- hadoop -->
         <dependency>
             <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-yarn-client</artifactId>
+            <artifactId>hadoop-client-api</artifactId>
         </dependency>
 
         <dependency>
             <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-yarn-api</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-common</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-hdfs</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-auth</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-mapreduce-client-core</artifactId>
+            <artifactId>hadoop-client-runtime</artifactId>
         </dependency>
 
         <dependency>
             <groupId>org.eclipse.jgit</groupId>
             <artifactId>org.eclipse.jgit.ssh.jsch</artifactId>
             <version>${eclipse.jgit.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.jcraft</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
-            <groupId>org.apache.ivy</groupId>
-            <artifactId>ivy</artifactId>
-            <version>${ivy.version}</version>
+            <groupId>com.github.mwiede</groupId>
+            <artifactId>jsch</artifactId>
+            <version>${jsch.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.apache.streampark</groupId>
             <artifactId>streampark-common_${scala.binary.version}</artifactId>
-            <version>${project.version}</version>
         </dependency>
 
         <dependency>
@@ -343,7 +369,19 @@
 
         <dependency>
             <groupId>org.apache.streampark</groupId>
+            <artifactId>streampark-spark-client-api_${scala.binary.version}</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.streampark</groupId>
             <artifactId>streampark-flink-kubernetes_${scala.binary.version}</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.streampark</groupId>
+            <artifactId>streampark-flink-kubernetes-core_${scala.binary.version}</artifactId>
             <version>${project.version}</version>
         </dependency>
 
@@ -354,62 +392,113 @@
         </dependency>
 
         <dependency>
+            <groupId>org.apache.streampark</groupId>
+            <artifactId>streampark-spark-sqlclient_${scala.binary.version}</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.streampark</groupId>
+            <artifactId>streampark-flink-sql-gateway-base</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.streampark</groupId>
+            <artifactId>streampark-flink-sql-gateway-flink-v1</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
             <groupId>com.fasterxml.jackson.module</groupId>
             <artifactId>jackson-module-scala_${scala.binary.version}</artifactId>
         </dependency>
 
-        <!-- swagger 3 -->
+        <!-- openapi -->
         <dependency>
-            <groupId>io.springfox</groupId>
-            <artifactId>springfox-boot-starter</artifactId>
-            <version>${springfox.version}</version>
-        </dependency>
-
-        <!-- swagger-bootstrap -->
-        <dependency>
-            <groupId>com.github.xiaoymin</groupId>
-            <artifactId>knife4j-spring-ui</artifactId>
-            <version>${swagger-bootstrap.version}</version>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-ui</artifactId>
+            <version>${springdoc-openapi-ui.version}</version>
         </dependency>
 
         <dependency>
             <groupId>com.github.xiaoymin</groupId>
-            <artifactId>knife4j-spring-boot-autoconfigure</artifactId>
-            <version>${swagger-bootstrap.version}</version>
-        </dependency>
-
-        <!--Test dependencies start.-->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
+            <artifactId>knife4j-openapi3-spring-boot-starter</artifactId>
+            <version>${knife4j-openapi3.version}</version>
             <exclusions>
                 <exclusion>
-                    <groupId>org.junit.jupiter</groupId>
-                    <artifactId>junit-jupiter</artifactId>
+                    <artifactId>springdoc-openapi-webflux-core</artifactId>
+                    <groupId>org.springdoc</groupId>
                 </exclusion>
             </exclusions>
         </dependency>
 
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-engine</artifactId>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-api</artifactId>
-            <scope>test</scope>
-        </dependency>
-
+        <!--Test dependencies start.-->
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+            <groupId>org.apache.streampark</groupId>
+            <artifactId>streampark-testcontainer</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+
         <!--Test dependencies end.-->
+
+        <!--log4j -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>log4j-over-slf4j</artifactId>
+        </dependency>
+
+        <!--tika -->
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-core</artifactId>
+            <version>1.20</version>
+        </dependency>
+
+        <!-- logback -->
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>force-shading</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-table-common</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>dev.zio</groupId>
+            <artifactId>zio-logging_${scala.binary.version}</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>dev.zio</groupId>
+            <artifactId>zio-streams_${scala.binary.version}</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>dev.zio</groupId>
+            <artifactId>zio-concurrent_${scala.binary.version}</artifactId>
+        </dependency>
 
     </dependencies>
 
@@ -450,6 +539,145 @@
                 </configuration>
             </plugin>
 
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.0.2</version>
+                <configuration>
+                    <excludeTransitive>false</excludeTransitive>
+                    <stripVersion>false</stripVersion>
+                    <artifactItems>
+                        <!-- flink 1.12 support-->
+                        <dependency>
+                            <groupId>org.apache.streampark</groupId>
+                            <artifactId>streampark-flink-shims_flink-1.12_${scala.binary.version}</artifactId>
+                            <version>${project.version}</version>
+                            <outputDirectory>${project.build.directory}/shims</outputDirectory>
+                        </dependency>
+                        <!-- flink 1.13 support-->
+                        <dependency>
+                            <groupId>org.apache.streampark</groupId>
+                            <artifactId>streampark-flink-shims_flink-1.13_${scala.binary.version}</artifactId>
+                            <version>${project.version}</version>
+                            <outputDirectory>${project.build.directory}/shims</outputDirectory>
+                        </dependency>
+                        <!-- flink 1.14 support-->
+                        <dependency>
+                            <groupId>org.apache.streampark</groupId>
+                            <artifactId>streampark-flink-shims_flink-1.14_${scala.binary.version}</artifactId>
+                            <version>${project.version}</version>
+                            <outputDirectory>${project.build.directory}/shims</outputDirectory>
+                        </dependency>
+                        <!-- flink 1.15 support-->
+                        <dependency>
+                            <groupId>org.apache.streampark</groupId>
+                            <artifactId>streampark-flink-shims_flink-1.15_${scala.binary.version}</artifactId>
+                            <version>${project.version}</version>
+                            <outputDirectory>${project.build.directory}/shims</outputDirectory>
+                        </dependency>
+                        <!-- flink 1.16 support-->
+                        <dependency>
+                            <groupId>org.apache.streampark</groupId>
+                            <artifactId>streampark-flink-shims_flink-1.16_${scala.binary.version}</artifactId>
+                            <version>${project.version}</version>
+                            <outputDirectory>${project.build.directory}/shims</outputDirectory>
+                        </dependency>
+                        <!-- flink 1.17 support-->
+                        <dependency>
+                            <groupId>org.apache.streampark</groupId>
+                            <artifactId>streampark-flink-shims_flink-1.17_${scala.binary.version}</artifactId>
+                            <version>${project.version}</version>
+                            <outputDirectory>${project.build.directory}/shims</outputDirectory>
+                        </dependency>
+                        <!-- flink 1.18 support-->
+                        <dependency>
+                            <groupId>org.apache.streampark</groupId>
+                            <artifactId>streampark-flink-shims_flink-1.18_${scala.binary.version}</artifactId>
+                            <version>${project.version}</version>
+                            <outputDirectory>${project.build.directory}/shims</outputDirectory>
+                        </dependency>
+                        <!-- flink-submit-core -->
+                        <dependency>
+                            <groupId>org.apache.streampark</groupId>
+                            <artifactId>streampark-flink-client-core_${scala.binary.version}</artifactId>
+                            <version>${project.version}</version>
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                        </dependency>
+                        <!-- spark-submit-core -->
+                        <dependency>
+                            <groupId>org.apache.streampark</groupId>
+                            <artifactId>streampark-spark-client-core_${scala.binary.version}</artifactId>
+                            <version>${project.version}</version>
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                        </dependency>
+                    </artifactItems>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <phase>package</phase>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.1.1</version>
+                <executions>
+                    <execution>
+                        <id>dist</id>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <phase>package</phase>
+                        <configuration>
+                            <tarLongFileMode>gnu</tarLongFileMode>
+                            <appendAssemblyId>false</appendAssemblyId>
+                            <skipAssembly>false</skipAssembly>
+                            <attach>false</attach>
+                            <finalName>apache-streampark-${project.version}-incubating-bin</finalName>
+                            <descriptors>
+                                <descriptor>${basedir}/src/main/assembly/assembly.xml</descriptor>
+                            </descriptors>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>net.alchim31.maven</groupId>
+                <artifactId>scala-maven-plugin</artifactId>
+                <configuration>
+                    <compileOrder>JavaThenScala</compileOrder>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>${maven-spotless-plugin.version}</version>
+                <configuration>
+                    <scala>
+                        <scalafmt>
+                            <version>${spotless.scalafmt.version}</version>
+                            <file>${maven.multiModuleProjectDirectory}/.scalafmt-fp.conf</file>
+                        </scalafmt>
+                    </scala>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>spotless-check</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
         </plugins>
     </build>
 
@@ -465,25 +693,25 @@
                     <plugin>
                         <groupId>com.github.eirslett</groupId>
                         <artifactId>frontend-maven-plugin</artifactId>
-                        <version>1.11.3</version>
+                        <version>1.12.1</version>
                         <configuration>
                             <workingDirectory>${project.basedir}/../${frontend.project.name}</workingDirectory>
                         </configuration>
                         <executions>
                             <execution>
-                                <id>install node and npm</id>
+                                <id>install node and pnpm</id>
                                 <goals>
-                                    <goal>install-node-and-npm</goal>
+                                    <goal>install-node-and-pnpm</goal>
                                 </goals>
                                 <configuration>
                                     <nodeVersion>v16.16.0</nodeVersion>
-                                    <npmVersion>8.19.2</npmVersion>
+                                    <pnpmVersion>8.5.0</pnpmVersion>
                                 </configuration>
                             </execution>
                             <execution>
                                 <id>install</id>
                                 <goals>
-                                    <goal>npm</goal>
+                                    <goal>pnpm</goal>
                                 </goals>
                                 <phase>generate-resources</phase>
                                 <configuration>
@@ -493,7 +721,7 @@
                             <execution>
                                 <id>build</id>
                                 <goals>
-                                    <goal>npm</goal>
+                                    <goal>pnpm</goal>
                                 </goals>
                                 <configuration>
                                     <arguments>run build:no-cache</arguments>
@@ -529,181 +757,6 @@
         </profile>
 
         <profile>
-            <id>scala-2.12</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-dependency-plugin</artifactId>
-                        <version>3.0.2</version>
-                        <configuration>
-                            <excludeTransitive>false</excludeTransitive>
-                            <stripVersion>false</stripVersion>
-                            <artifactItems>
-                                <!-- flink 1.12 support-->
-                                <dependency>
-                                    <groupId>org.apache.streampark</groupId>
-                                    <artifactId>streampark-flink-shims_flink-1.12_${scala.binary.version}</artifactId>
-                                    <version>${project.version}</version>
-                                    <outputDirectory>${project.build.directory}/shims</outputDirectory>
-                                </dependency>
-                                <!-- flink 1.13 support-->
-                                <dependency>
-                                    <groupId>org.apache.streampark</groupId>
-                                    <artifactId>streampark-flink-shims_flink-1.13_${scala.binary.version}</artifactId>
-                                    <version>${project.version}</version>
-                                    <outputDirectory>${project.build.directory}/shims</outputDirectory>
-                                </dependency>
-                                <!-- flink 1.14 support-->
-                                <dependency>
-                                    <groupId>org.apache.streampark</groupId>
-                                    <artifactId>streampark-flink-shims_flink-1.14_${scala.binary.version}</artifactId>
-                                    <version>${project.version}</version>
-                                    <outputDirectory>${project.build.directory}/shims</outputDirectory>
-                                </dependency>
-                                <!-- flink 1.15 support-->
-                                <dependency>
-                                    <groupId>org.apache.streampark</groupId>
-                                    <artifactId>streampark-flink-shims_flink-1.15_${scala.binary.version}</artifactId>
-                                    <version>${project.version}</version>
-                                    <outputDirectory>${project.build.directory}/shims</outputDirectory>
-                                </dependency>
-                                <!-- flink 1.16 support-->
-                                <dependency>
-                                    <groupId>org.apache.streampark</groupId>
-                                    <artifactId>streampark-flink-shims_flink-1.16_${scala.binary.version}</artifactId>
-                                    <version>${project.version}</version>
-                                    <outputDirectory>${project.build.directory}/shims</outputDirectory>
-                                </dependency>
-                                <!-- flink-submit-core -->
-                                <dependency>
-                                    <groupId>org.apache.streampark</groupId>
-                                    <artifactId>streampark-flink-client-core_${scala.binary.version}</artifactId>
-                                    <version>${project.version}</version>
-                                    <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                                </dependency>
-                            </artifactItems>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <goals>
-                                    <goal>copy</goal>
-                                </goals>
-                                <phase>package</phase>
-                            </execution>
-                        </executions>
-                    </plugin>
-
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-assembly-plugin</artifactId>
-                        <version>3.1.1</version>
-                        <executions>
-                            <execution>
-                                <id>dist</id>
-                                <goals>
-                                    <goal>single</goal>
-                                </goals>
-                                <phase>package</phase>
-                                <configuration>
-                                    <tarLongFileMode>gnu</tarLongFileMode>
-                                    <appendAssemblyId>false</appendAssemblyId>
-                                    <skipAssembly>false</skipAssembly>
-                                    <attach>false</attach>
-                                    <finalName>apache-streampark_${scala.binary.version}-${project.version}-incubating-bin</finalName>
-                                    <descriptors>
-                                        <descriptor>${basedir}/src/main/assembly/assembly.xml</descriptor>
-                                    </descriptors>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-
-        <profile>
-            <id>scala-2.11</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-dependency-plugin</artifactId>
-                        <version>3.0.2</version>
-                        <configuration>
-                            <excludeTransitive>false</excludeTransitive>
-                            <stripVersion>false</stripVersion>
-                            <artifactItems>
-                                <!-- flink 1.12 support-->
-                                <dependency>
-                                    <groupId>org.apache.streampark</groupId>
-                                    <artifactId>streampark-flink-shims_flink-1.12_${scala.binary.version}</artifactId>
-                                    <version>${project.version}</version>
-                                    <outputDirectory>${project.build.directory}/shims</outputDirectory>
-                                </dependency>
-                                <!-- flink 1.13 support-->
-                                <dependency>
-                                    <groupId>org.apache.streampark</groupId>
-                                    <artifactId>streampark-flink-shims_flink-1.13_${scala.binary.version}</artifactId>
-                                    <version>${project.version}</version>
-                                    <outputDirectory>${project.build.directory}/shims</outputDirectory>
-                                </dependency>
-                                <!-- flink 1.14 support-->
-                                <dependency>
-                                    <groupId>org.apache.streampark</groupId>
-                                    <artifactId>streampark-flink-shims_flink-1.14_${scala.binary.version}</artifactId>
-                                    <version>${project.version}</version>
-                                    <outputDirectory>${project.build.directory}/shims</outputDirectory>
-                                </dependency>
-                                <!-- flink-submit-core -->
-                                <dependency>
-                                    <groupId>org.apache.streampark</groupId>
-                                    <artifactId>streampark-flink-client-core_${scala.binary.version}</artifactId>
-                                    <version>${project.version}</version>
-                                    <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                                </dependency>
-                            </artifactItems>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <goals>
-                                    <goal>copy</goal>
-                                </goals>
-                                <phase>package</phase>
-                            </execution>
-                        </executions>
-                    </plugin>
-
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-assembly-plugin</artifactId>
-                        <version>3.1.1</version>
-                        <executions>
-                            <execution>
-                                <id>dist</id>
-                                <goals>
-                                    <goal>single</goal>
-                                </goals>
-                                <phase>package</phase>
-                                <configuration>
-                                    <tarLongFileMode>gnu</tarLongFileMode>
-                                    <appendAssemblyId>false</appendAssemblyId>
-                                    <skipAssembly>false</skipAssembly>
-                                    <attach>false</attach>
-                                    <finalName>apache-streampark_${scala.binary.version}-${project.version}-incubating-bin</finalName>
-                                    <descriptors>
-                                        <descriptor>${basedir}/src/main/assembly/assembly.xml</descriptor>
-                                    </descriptors>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-
-                </plugins>
-            </build>
-        </profile>
-
-        <profile>
             <id>dist</id>
             <build>
                 <plugins>
@@ -718,7 +771,9 @@
                                 <phase>package</phase>
                                 <configuration>
                                     <target>
-                                        <copy file="${project.build.directory}/apache-streampark_${scala.binary.version}-${project.version}-incubating-bin.tar.gz" overwrite="true" tofile="${project.basedir}/../../dist/apache-streampark_${scala.binary.version}-${project.version}-incubating-bin.tar.gz" />
+                                        <copy file="${project.build.directory}/apache-streampark-${project.version}-incubating-bin.tar.gz"
+                                              overwrite="true"
+                                              tofile="${project.basedir}/../../dist/apache-streampark-${project.version}-incubating-bin.tar.gz"/>
                                     </target>
                                 </configuration>
                             </execution>

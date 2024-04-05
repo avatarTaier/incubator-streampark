@@ -20,17 +20,16 @@
     <resultMap id="roleMap" type="org.apache.streampark.console.system.entity.Role">
         <result column="role_id" jdbcType="BIGINT" property="roleId"/>
         <result column="role_name" jdbcType="VARCHAR" property="roleName"/>
-        <result column="role_code" jdbcType="VARCHAR" property="roleCode"/>
-        <result column="remark" jdbcType="VARCHAR" property="remark"/>
         <result column="create_time" jdbcType="TIMESTAMP" property="createTime"/>
         <result column="modify_time" jdbcType="TIMESTAMP" property="modifyTime"/>
+        <result column="description" jdbcType="VARCHAR" property="description"/>
     </resultMap>
 
-    <select id="findRole" resultType="org.apache.streampark.console.system.entity.Role" parameterType="org.apache.streampark.console.system.entity.Role">
+    <select id="selectPage" resultType="org.apache.streampark.console.system.entity.Role" parameterType="org.apache.streampark.console.system.entity.Role">
         select * from t_role
         <where>
             <if test="role.roleName != null and role.roleName != ''">
-                and role_name like '%${role.roleName}%'
+                and role_name like concat('%', '${role.roleName}', '%')
             </if>
             <if test="role.createTimeFrom != null and role.createTimeFrom !=''">
                 and  create_time &gt; #{role.createTimeFrom}
@@ -39,9 +38,6 @@
                 and  create_time &lt; #{role.createTimeTo}
             </if>
         </where>
-        <if test="role.sortField != null and role.sortField != ''">
-            order by ${role.sortField} ${role.sortOrder}
-        </if>
     </select>
 
 </mapper>

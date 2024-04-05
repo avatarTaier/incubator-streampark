@@ -20,9 +20,11 @@ package org.apache.streampark.console.core.entity;
 import org.apache.streampark.common.conf.FlinkVersion;
 import org.apache.streampark.common.util.DeflaterUtils;
 import org.apache.streampark.common.util.PropertiesUtils;
+import org.apache.streampark.console.base.exception.ApiAlertException;
 import org.apache.streampark.console.base.exception.ApiDetailException;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -32,6 +34,7 @@ import lombok.Data;
 
 import java.io.File;
 import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Map;
 
@@ -61,12 +64,39 @@ public class FlinkEnv implements Serializable {
 
   private transient FlinkVersion flinkVersion;
 
+  private transient String versionOfLarge;
+
+  private transient String versionOfMiddle;
+
+  private transient String versionOfLast;
+
   private transient String streamParkScalaVersion = scala.util.Properties.versionNumberString();
 
   public void doSetFlinkConf() throws ApiDetailException {
+
+    File yaml;
+    float ver = Float.parseFloat(getVersionOfFirst().concat(".").concat(getVersionOfMiddle()));
+    if (ver < 1.19f) {
+      yaml = new File(this.flinkHome.concat("/conf/flink-conf.yaml"));
+      if (!yaml.exists()) {
+        throw new ApiAlertException("cannot find flink-conf.yaml in flink/conf ");
+      }
+    } else if (ver == 1.19f) {
+      yaml = new File(this.flinkHome.concat("/conf/flink-conf.yaml"));
+      if (!yaml.exists()) {
+        yaml = new File(this.flinkHome.concat("/conf/config.yaml"));
+      }
+      if (!yaml.exists()) {
+        throw new ApiAlertException("cannot find config.yaml|flink-conf.yaml in flink/conf ");
+      }
+    } else {
+      yaml = new File(this.flinkHome.concat("/conf/config.yaml"));
+      if (!yaml.exists()) {
+        throw new ApiAlertException("cannot find config.yaml in flink/conf ");
+      }
+    }
     try {
-      File yaml = new File(this.flinkHome.concat("/conf/flink-conf.yaml"));
-      String flinkConf = FileUtils.readFileToString(yaml);
+      String flinkConf = FileUtils.readFileToString(yaml, StandardCharsets.UTF_8);
       this.flinkConf = DeflaterUtils.zipString(flinkConf);
     } catch (Exception e) {
       throw new ApiDetailException(e);
@@ -101,23 +131,31 @@ public class FlinkEnv implements Serializable {
     this.flinkConf = DeflaterUtils.unzipString(this.flinkConf);
   }
 
-  @JsonIgnore
   public String getLargeVersion() {
-    return this.version.substring(0, this.version.lastIndexOf("."));
+    if (StringUtils.isNotBlank(this.version)) {
+      return this.version.substring(0, this.version.lastIndexOf("."));
+    }
+    return null;
   }
 
-  @JsonIgnore
   public String getVersionOfFirst() {
-    return this.version.split("\\.")[0];
+    if (StringUtils.isNotBlank(this.version)) {
+      return this.version.split("\\.")[0];
+    }
+    return null;
   }
 
-  @JsonIgnore
   public String getVersionOfMiddle() {
-    return this.version.split("\\.")[1];
+    if (StringUtils.isNotBlank(this.version)) {
+      return this.version.split("\\.")[1];
+    }
+    return null;
   }
 
-  @JsonIgnore
   public String getVersionOfLast() {
-    return this.version.split("\\.")[2];
+    if (StringUtils.isNotBlank(this.version)) {
+      return this.version.split("\\.")[2];
+    }
+    return null;
   }
 }

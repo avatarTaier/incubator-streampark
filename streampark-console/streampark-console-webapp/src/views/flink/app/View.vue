@@ -25,25 +25,31 @@
   import { useI18n } from '/@/hooks/web/useI18n';
   import { AppStateEnum, JobTypeEnum, OptionStateEnum, ReleaseStateEnum } from '/@/enums/flinkEnum';
   import { useTimeoutFn } from '@vueuse/core';
-  import { Tooltip, Badge, Divider, Tag } from 'ant-design-vue';
-  import { fetchAppRecord } from '/@/api/flink/app/app';
+  import { Tooltip, Badge, Tag, Popover } from 'ant-design-vue';
+  import { fetchAppRecord } from '/@/api/flink/app';
   import { useTable } from '/@/components/Table';
   import { PageWrapper } from '/@/components/Page';
   import { BasicTable, TableAction } from '/@/components/Table';
-  import { AppListRecord } from '/@/api/flink/app/app.type';
-  import { getAppColumns, releaseTitleMap } from './data';
+  import { AppListRecord } from '/@/api/flink/app.type';
+  import { releaseTitleMap } from './data';
   import { handleView } from './utils';
   import { useDrawer } from '/@/components/Drawer';
   import { useModal } from '/@/components/Modal';
 
-  import SavepointApplicationModal from './components/AppView/SavepointApplicationModal.vue';
   import StartApplicationModal from './components/AppView/StartApplicationModal.vue';
   import StopApplicationModal from './components/AppView/StopApplicationModal.vue';
   import LogModal from './components/AppView/LogModal.vue';
   import BuildDrawer from './components/AppView/BuildDrawer.vue';
   import AppDashboard from './components/AppView/AppDashboard.vue';
-  import State from './components/State';
-
+  import State, {
+    buildStatusMap,
+    optionStateMap,
+    releaseStateMap,
+    stateMap,
+  } from './components/State';
+  import { useSavepoint } from './hooks/useSavepoint';
+  import { useAppTableColumns } from './hooks/useAppTableColumns';
+  import AppTableResize from './components/AppResize.vue';
   const { t } = useI18n();
   const optionApps = {
     starting: new Map(),
@@ -56,12 +62,17 @@
 
   const yarn = ref<Nullable<string>>(null);
   const currentTablePage = ref(1);
-
+  const { onTableColumnResize, tableColumnWidth, getAppColumns } = useAppTableColumns();
+  const { openSavepoint } = useSavepoint(handleOptionApp);
   const [registerStartModal, { openModal: openStartModal }] = useModal();
   const [registerStopModal, { openModal: openStopModal }] = useModal();
-  const [registerSavepointModal, { openModal: openSavepointModal }] = useModal();
   const [registerLogModal, { openModal: openLogModal }] = useModal();
   const [registerBuildDrawer, { openDrawer: openBuildDrawer }] = useDrawer();
+  const titleLenRef = ref({
+    maxState: '',
+    maxRelease: '',
+    maxBuild: '',
+  });
 
   const [registerTable, { reload, getLoading, setPagination }] = useTable({
     rowKey: 'id',
@@ -113,23 +124,70 @@
           }
         }
       });
+      const stateLenMap = dataSource.reduce(
+        (
+          prev: {
+            maxState: string;
+            maxRelease: string;
+            maxBuild: string;
+          },
+          cur: any,
+        ) => {
+          const { state, optionState, release, buildStatus } = cur;
+          // state title len
+          if (optionState === OptionStateEnum.NONE) {
+            const stateStr = stateMap[state]?.title;
+            if (stateStr && stateStr.length > prev.maxState.length) {
+              prev.maxState = stateStr;
+            }
+          } else {
+            const stateStr = optionStateMap[optionState]?.title;
+            if (stateStr && stateStr.length > prev.maxState.length) {
+              prev.maxState = stateStr;
+            }
+          }
+
+          //release title len
+          const releaseStr = releaseStateMap[release]?.title;
+          if (releaseStr && releaseStr.length > prev.maxRelease.length) {
+            prev.maxRelease = releaseStr;
+          }
+
+          //build title len
+          const buildStr = buildStatusMap[buildStatus]?.title;
+          if (buildStr && buildStr.length > prev.maxBuild.length) {
+            prev.maxBuild = buildStr;
+          }
+          return prev;
+        },
+        {
+          maxState: '',
+          maxRelease: '',
+          maxBuild: '',
+        },
+      );
+      Object.assign(titleLenRef.value, stateLenMap);
+
       return dataSource;
     },
     fetchSetting: { listField: 'records' },
     immediate: true,
     canResize: false,
-    columns: getAppColumns(),
     showIndexColumn: false,
     showTableSetting: true,
     useSearchForm: true,
     tableSetting: { fullScreen: true, redo: false },
-    actionColumn: { dataIndex: 'operation', title: t('component.table.operation'), width: 180 },
+    actionColumn: {
+      dataIndex: 'operation',
+      title: t('component.table.operation'),
+      width: 180,
+    },
   });
 
-  const { getTableActions, getActionDropdown, formConfig } = useAppTableAction(
+  const { getTableActions, formConfig } = useAppTableAction(
     openStartModal,
     openStopModal,
-    openSavepointModal,
+    openSavepoint,
     openLogModal,
     openBuildDrawer,
     handlePageDataReload,
@@ -149,7 +207,7 @@
       app['optionState'] === OptionStateEnum.SAVEPOINTING
     ) {
       // yarn-per-job|yarn-session|yarn-application
-      handleView(app, unref(yarn));
+      await handleView(app, unref(yarn));
     }
   }
 
@@ -193,12 +251,20 @@
 <template>
   <PageWrapper contentFullHeight>
     <AppDashboard ref="appDashboardRef" />
-    <BasicTable @register="registerTable" class="app_list !px-0 pt-20px" :formConfig="formConfig">
+    <BasicTable
+      @register="registerTable"
+      :columns="getAppColumns"
+      @resize-column="onTableColumnResize"
+      class="app_list !px-0 pt-20px"
+      :formConfig="formConfig"
+    >
       <template #bodyCell="{ column, record }">
         <template v-if="column.dataIndex === 'jobName'">
-          <span class="app_type app_jar" v-if="record['jobType'] === JobTypeEnum.JAR"> JAR </span>
-          <span class="app_type app_sql" v-if="record['jobType'] === JobTypeEnum.SQL"> SQL </span>
-
+          <span class="app_type app_jar" v-if="record['jobType'] == JobTypeEnum.JAR"> JAR </span>
+          <span class="app_type app_sql" v-if="record['jobType'] == JobTypeEnum.SQL"> SQL </span>
+          <span class="app_type app_py" v-if="record['jobType'] == JobTypeEnum.PYFLINK">
+            PyFlink
+          </span>
           <span
             class="link"
             :class="{
@@ -208,12 +274,32 @@
             }"
             @click="handleJobView(record)"
           >
-            <Tooltip :title="record.description"> {{ record.jobName }} </Tooltip>
+            <Popover :title="t('common.detailText')">
+              <template #content>
+                <div class="flex">
+                  <span class="pr-6px font-bold">{{ t('flink.app.appName') }}:</span>
+                  <div class="max-w-300px break-words">{{ record.jobName }}</div>
+                </div>
+                <div class="pt-2px">
+                  <span class="pr-6px font-bold">{{ t('flink.app.jobType') }}:</span>
+                  <Tag color="blue">
+                    <span v-if="record['jobType'] == JobTypeEnum.JAR"> JAR </span>
+                    <span v-if="record['jobType'] == JobTypeEnum.SQL"> SQL </span>
+                    <span v-if="record['jobType'] == JobTypeEnum.PYFLINK"> PyFlink </span>
+                  </Tag>
+                </div>
+                <div class="pt-2px flex">
+                  <span class="pr-6px font-bold">{{ t('common.description') }}:</span>
+                  <div class="max-w-300px break-words">{{ record.description }}</div>
+                </div>
+              </template>
+              {{ record.jobName }}
+            </Popover>
           </span>
 
-          <template v-if="record['jobType'] === JobTypeEnum.JAR">
+          <template v-if="record['jobType'] == JobTypeEnum.JAR">
             <Badge
-              v-if="record.release == ReleaseStateEnum.NEED_CHECK"
+              v-if="record.release === ReleaseStateEnum.NEED_CHECK"
               class="build-badge"
               count="NEW"
               :title="t('flink.app.view.recheck')"
@@ -233,7 +319,7 @@
               :key="'tag-'.concat(index.toString())"
               class="pl-4px"
             >
-              <Tag color="blue" class="app-tag">{{ tag }}</Tag>
+              <Tag color="blue">{{ tag }}</Tag>
             </span>
           </Tooltip>
         </template>
@@ -241,31 +327,30 @@
           <State option="task" :data="record" />
         </template>
         <template v-if="column.dataIndex === 'state'">
-          <State option="state" :data="record" />
+          <State option="state" :data="record" :maxTitle="titleLenRef.maxState" />
         </template>
         <template v-if="column.dataIndex === 'release'">
-          <State option="release" :title="releaseTitleMap[record.release] || ''" :data="record" />
-          <Divider type="vertical" style="margin: 0 4px" v-if="record.buildStatus" />
           <State
-            option="build"
-            :click="openBuildProgressDetailDrawer.bind(null, record)"
+            option="release"
+            :maxTitle="titleLenRef.maxRelease"
+            :title="releaseTitleMap[record.release] || ''"
             :data="record"
           />
         </template>
         <template v-if="column.dataIndex === 'operation'">
-          <TableAction
-            :actions="getTableActions(record, currentTablePage)"
-            :dropDownActions="getActionDropdown(record)"
-          />
+          <TableAction v-bind="getTableActions(record, currentTablePage)" />
         </template>
+      </template>
+      <template #insertTable="{ tableContainer }">
+        <AppTableResize
+          :table-container="tableContainer"
+          :resize-min="100"
+          v-model:left="tableColumnWidth.jobName"
+        />
       </template>
     </BasicTable>
     <StartApplicationModal @register="registerStartModal" @update-option="handleOptionApp" />
     <StopApplicationModal @register="registerStopModal" @update-option="handleOptionApp" />
-    <SavepointApplicationModal
-      @register="registerSavepointModal"
-      @update-option="handleOptionApp"
-    />
     <LogModal @register="registerLogModal" />
     <BuildDrawer @register="registerBuildDrawer" />
   </PageWrapper>

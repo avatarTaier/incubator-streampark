@@ -22,6 +22,7 @@
         <result column="app_id" jdbcType="BIGINT" property="appId"/>
         <result column="sql" jdbcType="LONGVARCHAR" property="sql"/>
         <result column="candidate" jdbcType="INTEGER" property="candidate"/>
+        <result column="team_resource" jdbcType="VARCHAR" property="teamResource"/>
         <result column="dependency" jdbcType="VARCHAR" property="dependency"/>
         <result column="create_time" jdbcType="DATE" property="createTime"/>
     </resultMap>
@@ -41,11 +42,12 @@
         where app_id = #{appId}
     </select>
 
-    <select id="getByTeamId" resultType="org.apache.streampark.console.core.entity.FlinkSql" parameterType="java.lang.Long">
+    <select id="selectSqlsByTeamId" resultType="org.apache.streampark.console.core.entity.FlinkSql" parameterType="java.lang.Long">
         select s.*
         from t_flink_sql s
         inner join t_flink_app a
-        where s.app_id = a.id
-        and a.team_id = #{teamId}
+        on s.app_id = a.id
+        where a.team_id = #{teamId}
     </select>
+
 </mapper>

@@ -15,9 +15,9 @@
  * limitations under the License.
  */
 import { optionsKeyMapping } from '../data/option';
-import { fetchYarn } from '/@/api/flink/app/app';
-import { AppListRecord } from '/@/api/flink/app/app.type';
-import { fetchRemoteURL } from '/@/api/flink/setting/flinkCluster';
+import { fetchYarn } from '/@/api/flink/app';
+import { AppListRecord } from '/@/api/flink/app.type';
+import { fetchRemoteURL } from '/@/api/flink/flinkCluster';
 import {
   AppStateEnum,
   ConfigTypeEnum,
@@ -161,7 +161,10 @@ export function handleIsStart(app: Recordable, optionApps: Recordable) {
 }
 
 export function handleYarnQueue(values: Recordable) {
-  if (values.executionMode == ExecModeEnum.YARN_APPLICATION) {
+  if (
+    values.executionMode == ExecModeEnum.YARN_APPLICATION ||
+    values.executionMode == ExecModeEnum.YARN_PER_JOB
+  ) {
     const queue = values['yarnQueue'];
     if (queue != null && queue !== '' && queue !== undefined) {
       return queue;
@@ -224,13 +227,18 @@ export function handleDependencyJsonToPom(json, pomMap, jarMap) {
         const groupId = x.groupId;
         const artifactId = x.artifactId;
         const version = x.version;
+        const classifier = x.classifier;
         const exclusions = x.exclusions || [];
 
-        const id = groupId + '_' + artifactId;
+        const id =
+          classifier != null
+            ? groupId + '_' + artifactId + '_' + classifier
+            : groupId + '_' + artifactId;
         const mvnPom = {
           groupId: groupId,
           artifactId: artifactId,
           version: version,
+          classifier: classifier,
           exclusions: [] as any[],
         };
         if (exclusions != null && exclusions.length > 0) {
@@ -280,6 +288,7 @@ export function handleSubmitParams(
     restartSize: values.restartSize,
     alertId: values.alertId,
     description: values.description,
+    hadoopUser: values.hadoopUser,
     k8sNamespace: values.k8sNamespace || null,
     clusterId: values.clusterId || null,
     flinkClusterId:
@@ -305,4 +314,11 @@ export const filterOption = (input: string, options: Recordable) => {
 // k8s mode
 export function isK8sExecMode(mode: number): boolean {
   return [ExecModeEnum.KUBERNETES_SESSION, ExecModeEnum.KUBERNETES_APPLICATION].includes(mode);
+}
+
+export function handleTeamResource(resource: string) {
+  if (resource != null && resource !== '') {
+    return JSON.parse(resource);
+  }
+  return [];
 }

@@ -20,12 +20,12 @@ package org.apache.streampark.console.core.service.alert.impl;
 import org.apache.streampark.console.base.domain.RestRequest;
 import org.apache.streampark.console.base.exception.AlertException;
 import org.apache.streampark.console.base.mybatis.pager.MybatisPager;
-import org.apache.streampark.console.core.bean.AlertConfigWithParams;
+import org.apache.streampark.console.core.bean.AlertConfigParams;
 import org.apache.streampark.console.core.entity.AlertConfig;
 import org.apache.streampark.console.core.entity.Application;
 import org.apache.streampark.console.core.mapper.AlertConfigMapper;
-import org.apache.streampark.console.core.service.ApplicationService;
 import org.apache.streampark.console.core.service.alert.AlertConfigService;
+import org.apache.streampark.console.core.service.application.ApplicationInfoService;
 
 import org.apache.commons.collections.CollectionUtils;
 
@@ -47,23 +47,21 @@ import java.util.stream.Collectors;
 public class AlertConfigServiceImpl extends ServiceImpl<AlertConfigMapper, AlertConfig>
     implements AlertConfigService {
 
-  @Autowired private ApplicationService applicationService;
+  @Autowired private ApplicationInfoService applicationInfoService;
 
   @Override
-  public IPage<AlertConfigWithParams> page(AlertConfigWithParams params, RestRequest request) {
+  public IPage<AlertConfigParams> page(Long userId, RestRequest request) {
     // build query conditions
-    LambdaQueryWrapper<AlertConfig> wrapper = new LambdaQueryWrapper();
-    wrapper.eq(params.getUserId() != null, AlertConfig::getUserId, params.getUserId());
+    LambdaQueryWrapper<AlertConfig> wrapper = new LambdaQueryWrapper<>();
+    wrapper.eq(userId != null, AlertConfig::getUserId, userId);
 
-    Page<AlertConfig> page = new MybatisPager<AlertConfig>().getDefaultPage(request);
+    Page<AlertConfig> page = MybatisPager.getPage(request);
     IPage<AlertConfig> resultPage = getBaseMapper().selectPage(page, wrapper);
 
-    Page<AlertConfigWithParams> result = new Page<>();
+    Page<AlertConfigParams> result = new Page<>();
     if (CollectionUtils.isNotEmpty(resultPage.getRecords())) {
       result.setRecords(
-          resultPage.getRecords().stream()
-              .map(AlertConfigWithParams::of)
-              .collect(Collectors.toList()));
+          resultPage.getRecords().stream().map(AlertConfigParams::of).collect(Collectors.toList()));
     }
 
     return result;
@@ -71,14 +69,14 @@ public class AlertConfigServiceImpl extends ServiceImpl<AlertConfigMapper, Alert
 
   @Override
   public boolean exist(AlertConfig alertConfig) {
-    AlertConfig confByName = this.baseMapper.getAlertConfByName(alertConfig);
+    AlertConfig confByName = this.baseMapper.selectAlertConfByName(alertConfig);
     return confByName != null;
   }
 
   @Override
-  public boolean deleteById(Long id) throws AlertException {
+  public boolean removeById(Long id) throws AlertException {
     long count =
-        applicationService.count(
+        applicationInfoService.count(
             new LambdaQueryWrapper<Application>().eq(id != null, Application::getAlertId, id));
     if (count > 0) {
       throw new AlertException(
@@ -86,6 +84,6 @@ public class AlertConfigServiceImpl extends ServiceImpl<AlertConfigMapper, Alert
               "AlertId:%d, this is bound by application. Please clear the configuration first",
               id));
     }
-    return removeById(id);
+    return super.removeById(id);
   }
 }

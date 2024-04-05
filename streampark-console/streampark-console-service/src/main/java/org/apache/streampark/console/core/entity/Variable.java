@@ -17,7 +17,7 @@
 
 package org.apache.streampark.console.core.entity;
 
-import org.apache.streampark.common.conf.ConfigConst;
+import org.apache.streampark.common.Constant;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -35,7 +35,7 @@ import java.util.Date;
 @TableName("t_variable")
 public class Variable implements Serializable {
 
-  private static final long serialVersionUID = -7720746591258904369L;
+  private static final long serialVersionUID = 1L;
 
   @TableId(type = IdType.AUTO)
   private Long id;
@@ -60,17 +60,13 @@ public class Variable implements Serializable {
 
   private Boolean desensitization;
 
-  private transient Date createTime;
+  private Date createTime;
 
-  private transient Date modifyTime;
-
-  private transient String sortField;
-
-  private transient String sortOrder;
+  private Date modifyTime;
 
   public void dataMasking() {
     if (desensitization) {
-      this.setVariableValue(ConfigConst.DEFAULT_DATAMASK_STRING());
+      this.setVariableValue(Constant.DEFAULT_DATAMASK_STRING);
     }
   }
 }

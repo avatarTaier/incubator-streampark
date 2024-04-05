@@ -20,7 +20,7 @@
     <parent>
         <groupId>org.apache.streampark</groupId>
         <artifactId>streampark</artifactId>
-        <version>2.1.0-SNAPSHOT</version>
+        <version>2.2.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>streampark-spark</artifactId>
@@ -30,6 +30,8 @@
     <modules>
         <module>streampark-spark-core</module>
         <module>streampark-spark-connector</module>
+        <module>streampark-spark-client</module>
+        <module>streampark-spark-sqlclient</module>
     </modules>
 
     <dependencies>
@@ -39,6 +41,7 @@
             <artifactId>streampark-common_2.12</artifactId>
             <version>${project.version}</version>
         </dependency>
+
         <dependency>
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-streaming_2.12</artifactId>
@@ -49,30 +52,53 @@
                     <artifactId>slf4j-log4j12</artifactId>
                 </exclusion>
             </exclusions>
-            <scope>provided</scope>
         </dependency>
+
         <dependency>
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-sql_2.12</artifactId>
             <version>${spark.version}</version>
-            <scope>provided</scope>
         </dependency>
+
         <dependency>
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-streaming-kafka-0-10_2.12</artifactId>
             <version>${spark.version}</version>
         </dependency>
+
         <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-common</artifactId>
-            <version>${hadoop.version}</version>
+            <groupId>com.esotericsoftware</groupId>
+            <artifactId>kryo-shaded</artifactId>
+            <version>4.0.2</version>
             <scope>provided</scope>
         </dependency>
+
         <dependency>
-            <groupId>org.apache.hadoop</groupId>
-            <artifactId>hadoop-hdfs</artifactId>
+            <groupId>org.json4s</groupId>
+            <artifactId>json4s-ast_2.12</artifactId>
+            <version>3.7.0-M5</version>
             <scope>provided</scope>
         </dependency>
+
+        <dependency>
+            <groupId>org.json4s</groupId>
+            <artifactId>json4s-core_2.12</artifactId>
+            <version>3.7.0-M5</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-client-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-client-runtime</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.apache.hbase</groupId>
             <artifactId>hbase-hadoop2-compat</artifactId>

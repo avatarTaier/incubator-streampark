@@ -17,45 +17,69 @@
 
 package org.apache.streampark.flink.cli
 
-import scala.language.implicitConversions
-import scala.util.Try
-
-import org.apache.flink.api.java.utils.ParameterTool
-import org.apache.flink.configuration.ExecutionOptions
-
-import org.apache.streampark.common.conf.ConfigConst.{KEY_APP_CONF, KEY_FLINK_SQL, KEY_FLINK_TABLE_MODE}
+import org.apache.streampark.common.conf.ConfigKeys.{KEY_APP_CONF, KEY_FLINK_SQL, KEY_FLINK_TABLE_MODE}
 import org.apache.streampark.common.util.{DeflaterUtils, PropertiesUtils}
 import org.apache.streampark.flink.core.{SqlCommand, SqlCommandParser}
 import org.apache.streampark.flink.core.scala.{FlinkStreamTable, FlinkTable}
 
+import org.apache.commons.lang3.StringUtils
+import org.apache.flink.api.common.RuntimeExecutionMode
+import org.apache.flink.api.java.utils.ParameterTool
+import org.apache.flink.configuration.ExecutionOptions
+
+import scala.collection.mutable.ArrayBuffer
+import scala.language.implicitConversions
+import scala.util.{Failure, Success, Try}
+
 object SqlClient extends App {
 
-  val parameterTool = ParameterTool.fromArgs(args)
+  val arguments = ArrayBuffer(args: _*)
 
-  val flinkSql = {
+  private[this] val parameterTool = ParameterTool.fromArgs(args)
+
+  private[this] val flinkSql = {
     val sql = parameterTool.get(KEY_FLINK_SQL())
-    require(sql != null && sql.trim.nonEmpty, "Usage: flink sql cannot be null")
-    Try(DeflaterUtils.unzipString(sql)).getOrElse(throw new IllegalArgumentException("Usage: flink sql is invalid or null, please check"))
+    require(StringUtils.isNotBlank(sql), "Usage: flink sql cannot be null")
+    Try(DeflaterUtils.unzipString(sql)) match {
+      case Success(value) => value
+      case Failure(_) =>
+        throw new IllegalArgumentException("Usage: flink sql is invalid or null, please check")
+    }
   }
 
-  val sets = SqlCommandParser.parseSQL(flinkSql).filter(_.command == SqlCommand.SET)
+  private[this] val sets = SqlCommandParser.parseSQL(flinkSql).filter(_.command == SqlCommand.SET)
 
-  val mode = sets.find(_.operands.head == ExecutionOptions.RUNTIME_MODE.key()) match {
-    case Some(e) => e.operands(1)
+  private[this] val defaultMode = RuntimeExecutionMode.STREAMING.name()
+
+  private[this] val mode = sets.find(_.operands.head == ExecutionOptions.RUNTIME_MODE.key()) match {
+    case Some(e) =>
+      // 1) flink sql execution.runtime-mode has highest priority
+      val m = e.operands(1).toUpperCase()
+      arguments += s"-D${ExecutionOptions.RUNTIME_MODE.key()}=$m"
+      m
     case None =>
-      val appConf = parameterTool.get(KEY_APP_CONF(), null)
-      val defaultMode = "streaming"
-      if (appConf == null) defaultMode
-      else {
-        val parameter = PropertiesUtils.fromYamlText(DeflaterUtils.unzipString(appConf.drop(7)))
-        parameter.getOrElse(KEY_FLINK_TABLE_MODE, defaultMode)
+      // 2) dynamic properties execution.runtime-mode
+      parameterTool.get(ExecutionOptions.RUNTIME_MODE.key(), null) match {
+        case null =>
+          val m = parameterTool.get(KEY_APP_CONF(), null) match {
+            case null => defaultMode
+            case f =>
+              val parameter = PropertiesUtils.fromYamlText(DeflaterUtils.unzipString(f.drop(7)))
+              // 3) application conf execution.runtime-mode
+              parameter.getOrElse(KEY_FLINK_TABLE_MODE, defaultMode).toUpperCase()
+          }
+          arguments += s"-D${ExecutionOptions.RUNTIME_MODE.key()}=$m"
+          m
+        case m => m
       }
   }
 
   mode match {
-    case "batch" => BatchSqlApp.main(args)
-    case "streaming" => StreamSqlApp.main(args)
-    case _ => throw new IllegalArgumentException("Usage: runtime execution-mode invalid, optional [streaming|batch]")
+    case "STREAMING" | "AUTOMATIC" => StreamSqlApp.main(arguments.toArray)
+    case "BATCH" => BatchSqlApp.main(arguments.toArray)
+    case _ =>
+      throw new IllegalArgumentException(
+        "Usage: runtime execution-mode invalid, optional [STREAMING|BATCH|AUTOMATIC]")
   }
 
   private[this] object BatchSqlApp extends FlinkTable {

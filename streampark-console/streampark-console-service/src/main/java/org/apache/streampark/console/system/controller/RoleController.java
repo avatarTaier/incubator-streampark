@@ -21,12 +21,14 @@ import org.apache.streampark.console.base.domain.RestRequest;
 import org.apache.streampark.console.base.domain.RestResponse;
 import org.apache.streampark.console.system.entity.Role;
 import org.apache.streampark.console.system.entity.RoleMenu;
-import org.apache.streampark.console.system.service.RoleMenuServie;
+import org.apache.streampark.console.system.service.RoleMenuService;
 import org.apache.streampark.console.system.service.RoleService;
 
 import org.apache.shiro.authz.annotation.RequiresPermissions;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
@@ -42,6 +44,7 @@ import javax.validation.constraints.NotBlank;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Tag(name = "ROLE_TAG")
 @Slf4j
 @Validated
 @RestController
@@ -49,31 +52,35 @@ import java.util.stream.Collectors;
 public class RoleController {
 
   @Autowired private RoleService roleService;
-  @Autowired private RoleMenuServie roleMenuServie;
+  @Autowired private RoleMenuService roleMenuService;
 
+  @Operation(summary = "List roles")
   @PostMapping("list")
   @RequiresPermissions("role:view")
   public RestResponse roleList(RestRequest restRequest, Role role) {
-    IPage<Role> roleList = roleService.findRoles(role, restRequest);
+    IPage<Role> roleList = roleService.getPage(role, restRequest);
     return RestResponse.success(roleList);
   }
 
+  @Operation(summary = "Check the role name")
   @PostMapping("check/name")
   public RestResponse checkRoleName(@NotBlank(message = "{required}") String roleName) {
-    Role result = this.roleService.findByName(roleName);
+    Role result = this.roleService.getByName(roleName);
     return RestResponse.success(result == null);
   }
 
+  @Operation(summary = "List role menus")
   @PostMapping("menu")
   public RestResponse getRoleMenus(@NotBlank(message = "{required}") String roleId) {
-    List<RoleMenu> list = this.roleMenuServie.getByRoleId(roleId);
-    List<String> roleMenus =
-        list.stream()
+    List<RoleMenu> roleMenuList = this.roleMenuService.listByRoleId(roleId);
+    List<String> menuIdList =
+        roleMenuList.stream()
             .map(roleMenu -> String.valueOf(roleMenu.getMenuId()))
             .collect(Collectors.toList());
-    return RestResponse.success(roleMenus);
+    return RestResponse.success(menuIdList);
   }
 
+  @Operation(summary = "Create role")
   @PostMapping("post")
   @RequiresPermissions("role:add")
   public RestResponse addRole(@Valid Role role) {
@@ -81,13 +88,15 @@ public class RoleController {
     return RestResponse.success();
   }
 
+  @Operation(summary = "Delete role")
   @DeleteMapping("delete")
   @RequiresPermissions("role:delete")
   public RestResponse deleteRole(Long roleId) {
-    this.roleService.deleteRole(roleId);
+    this.roleService.removeById(roleId);
     return RestResponse.success();
   }
 
+  @Operation(summary = "Update role")
   @PutMapping("update")
   @RequiresPermissions("role:update")
   public RestResponse updateRole(Role role) throws Exception {

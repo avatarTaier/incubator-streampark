@@ -27,8 +27,8 @@
   import { SvgIcon } from '/@/components/Icon';
   import { BasicModal, useModalInner } from '/@/components/Modal';
   import { useMessage } from '/@/hooks/web/useMessage';
-  import { fetchCancel, fetchCheckSavepointPath } from '/@/api/flink/app/app';
-  import { CancelParam } from '/@/api/flink/app/app.type';
+  import { fetchCancel, fetchCheckSavepointPath } from '/@/api/flink/app';
+  import { CancelParam } from '/@/api/flink/app.type';
   import { h } from 'vue';
   const emit = defineEmits(['register', 'updateOption']);
   const app = reactive<Recordable>({});
@@ -54,18 +54,34 @@
           unCheckedChildren: 'OFF',
         },
         defaultValue: true,
-        afterItem: () =>
-          h('span', { class: 'conf-switch' }, 'trigger savePoint before taking cancel'),
+        afterItem: () => h('span', { class: 'tip-info' }, 'trigger savePoint before taking cancel'),
       },
       {
         field: 'customSavepoint',
-        label: 'Custom SavePoint',
+        label: 'Custom Savepoint',
         component: 'Input',
         componentProps: {
           placeholder: 'Entry the custom savepoint path',
           allowClear: true,
         },
-        afterItem: () => h('span', { class: 'conf-switch' }, 'cancel job with savepoint path'),
+        afterItem: () => h('span', { class: 'tip-info' }, 'cancel job with savepoint path'),
+        ifShow: ({ values }) => !!values.stopSavePointed,
+      },
+      {
+        field: 'nativeFormat',
+        label: 'NativeFormat',
+        component: 'Switch',
+        componentProps: {
+          checkedChildren: 'ON',
+          unCheckedChildren: 'OFF',
+        },
+        defaultValue: false,
+        afterItem: () =>
+          h(
+            'span',
+            { class: 'tip-info' },
+            'Note: native format savepoint is supported since flink 1.15',
+          ),
         ifShow: ({ values }) => !!values.stopSavePointed,
       },
       {
@@ -77,7 +93,7 @@
           unCheckedChildren: 'OFF',
         },
         defaultValue: false,
-        afterItem: () => h('span', { class: 'conf-switch' }, 'Send max watermark before stopped'),
+        afterItem: () => h('span', { class: 'tip-info' }, 'Send max watermark before stopped'),
       },
     ],
     colon: true,
@@ -90,12 +106,14 @@
   /* submit */
   async function handleSubmit() {
     try {
-      const { stopSavePointed, drain, customSavepoint } = (await validate()) as Recordable;
+      const { stopSavePointed, customSavepoint, drain, nativeFormat } =
+        (await validate()) as Recordable;
       const stopReq = {
         id: app.id,
         savePointed: stopSavePointed,
-        drain: drain,
         savePoint: customSavepoint,
+        drain: drain,
+        nativeFormat: nativeFormat,
       };
 
       if (stopSavePointed) {
@@ -104,7 +122,7 @@
             savePoint: customSavepoint,
           });
           if (data.data === false) {
-            createErrorSwal('custom savePoint path is invalid, ' + data.message);
+            createErrorSwal('custom savepoint path is invalid, ' + data.message);
           } else {
             handleStopAction(stopReq);
           }
@@ -151,9 +169,8 @@
   >
     <template #title>
       <SvgIcon name="shutdown" style="color: red" />
-
       {{ t('flink.app.view.stop') }}
     </template>
-    <BasicForm @register="registerForm" class="!pt-20px" />
+    <BasicForm @register="registerForm" class="!pt-30px" />
   </BasicModal>
 </template>

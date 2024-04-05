@@ -18,6 +18,7 @@
 package org.apache.streampark.console.system.service;
 
 import org.apache.streampark.console.base.domain.RestRequest;
+import org.apache.streampark.console.base.domain.RestResponse;
 import org.apache.streampark.console.system.authentication.JWTToken;
 import org.apache.streampark.console.system.entity.User;
 
@@ -38,7 +39,7 @@ public interface UserService extends IService<User> {
    * @param username username
    * @return user
    */
-  User findByName(String username);
+  User getByUsername(String username);
 
   /**
    * find uer detail, contains basic info, role, department
@@ -47,7 +48,7 @@ public interface UserService extends IService<User> {
    * @param restRequest queryRequest
    * @return IPage
    */
-  IPage<User> findUserDetail(User user, RestRequest restRequest);
+  IPage<User> getPage(User user, RestRequest restRequest);
 
   /**
    * update login time
@@ -67,30 +68,9 @@ public interface UserService extends IService<User> {
    * update user
    *
    * @param user user
+   * @return
    */
-  void updateUser(User user) throws Exception;
-
-  /**
-   * delete user
-   *
-   * @param userId user id
-   */
-  void deleteUser(Long userId) throws Exception;
-
-  /**
-   * update user
-   *
-   * @param user user
-   */
-  void updateProfile(User user) throws Exception;
-
-  /**
-   * update user avatar
-   *
-   * @param username name
-   * @param avatar avatar
-   */
-  void updateAvatar(String username, String avatar) throws Exception;
+  RestResponse updateUser(User user) throws Exception;
 
   /**
    * update password
@@ -103,9 +83,9 @@ public interface UserService extends IService<User> {
   /**
    * reset password
    *
-   * @param usernames user list
+   * @param username user name
    */
-  void resetPassword(String[] usernames) throws Exception;
+  String resetPassword(String username) throws Exception;
 
   /**
    * Get the permissions of current userId.
@@ -114,19 +94,76 @@ public interface UserService extends IService<User> {
    * @param teamId team id. If it's null, will find permissions from all teams.
    * @return permissions
    */
-  Set<String> getPermissions(Long userId, @Nullable Long teamId);
+  Set<String> listPermissions(Long userId, @Nullable Long teamId);
 
-  List<User> getNoTokenUser();
+  /**
+   * List all users without tokens
+   *
+   * @return List of User
+   */
+  List<User> listNoTokenUser();
 
+  /**
+   * Populate the LastTeam field in User
+   *
+   * @param teamId team id
+   * @param userId user id
+   */
   void setLastTeam(Long teamId, Long userId);
 
+  /**
+   * Clean the LastTeam field in User
+   *
+   * @param userId user id
+   * @param teamId team id
+   */
   void clearLastTeam(Long userId, Long teamId);
 
+  /**
+   * Clean the LastTeam field in User
+   *
+   * @param teamId team id
+   */
   void clearLastTeam(Long teamId);
 
+  /**
+   * Populate team information for users
+   *
+   * @param user User
+   */
   void fillInTeam(User user);
 
-  List<User> findByAppOwner(Long teamId);
+  /**
+   * List all Users by team id
+   *
+   * @param teamId team id
+   * @return List of user
+   */
+  List<User> listByTeamId(Long teamId);
 
+  /**
+   * Generate user information for the front end
+   *
+   * @param user User
+   * @param teamId team id
+   * @param token JWTToken
+   * @return
+   */
   Map<String, Object> generateFrontendUserInfo(User user, Long teamId, JWTToken token);
+
+  /**
+   * transfer user resources to specified users
+   *
+   * @param userId The user ID sending the resource
+   * @param targetUserId The user ID receiving the resource
+   */
+  void transferResource(Long userId, Long targetUserId);
+
+  /**
+   * Get login user information
+   *
+   * @param user User
+   * @return RestResponse
+   */
+  RestResponse getLoginUserInfo(User user);
 }

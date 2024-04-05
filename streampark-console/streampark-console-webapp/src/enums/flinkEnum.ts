@@ -1,20 +1,3 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 export enum BuildStateEnum {
   /** has changed, need rebuild */
   NEED_REBUILD = -2,
@@ -62,6 +45,17 @@ export enum ReleaseStateEnum {
   REVOKED = 10,
 }
 
+export enum OperationEnum {
+  /** user operation: release app */
+  RELEASE = 0,
+  /** user operation: start app */
+  START = 1,
+  /** user operation: trigger savepoint */
+  SAVEPOINT = 2,
+  /** user operation: cancel app */
+  CANCEL = 3,
+}
+
 export enum OptionStateEnum {
   /** Application which is currently action: none. */
   NONE = 0,
@@ -96,7 +90,7 @@ export enum AppStateEnum {
   CANCELLING = 8,
   /** Job has been cancelled. */
   CANCELED = 9,
-  /** All of the job's tasks have successfully finished. */
+  /** All the job's tasks have successfully finished. */
   FINISHED = 10,
   /** The job has been suspended which means that it has been stopped but not been removed from a potential HA job store. */
   SUSPENDED = 11,
@@ -115,13 +109,15 @@ export enum AppStateEnum {
    * A complete loss of flink job tracking translates into LOST state.
    */
   SILENT = 17,
-  /** Flink job has terminated vaguely, maybe FINISHED, CACNELED or FAILED */
+  /** Flink job has terminated vaguely, maybe FINISHED, CANCELED or FAILED */
   TERMINATED = 18,
-  /** Flink job has terminated vaguely, maybe FINISHED, CACNELED or FAILED */
+  /** Flink job has terminated vaguely, maybe FINISHED, CANCELED or FAILED */
   POS_TERMINATED = 19,
   /** job SUCCEEDED on yarn */
   SUCCEEDED = 20,
   /** has killed in Yarn */
+  PROBING = 21,
+  /** Job auto Health probe */
   KILLED = -9,
 }
 
@@ -129,11 +125,17 @@ export enum ClusterStateEnum {
   /** The cluster was just created but not started */
   CREATED = 0,
   /** cluster started */
-  STARTED = 1,
+  RUNNING = 1,
   /** cluster canceled */
   CANCELED = 2,
   /** cluster lost */
   LOST = 3,
+  /** cluster unknown */
+  UNKNOWN = 4,
+  STARTING = 5,
+  CANCELLING = 6,
+  FAILED = 7,
+  KILLED = 8,
 }
 
 export enum AppTypeEnum {
@@ -150,6 +152,7 @@ export enum AppTypeEnum {
 export enum JobTypeEnum {
   JAR = 1,
   SQL = 2,
+  PYFLINK = 3,
 }
 
 export enum ConfigTypeEnum {
@@ -173,8 +176,8 @@ export enum CandidateTypeEnum {
 }
 
 export enum ResourceFromEnum {
-  /** cicd(build from cvs) */
-  CICD = 1,
+  /** from PROJECT */
+  PROJECT = 1,
   /** upload local jar */
   UPLOAD = 2,
 }
@@ -216,4 +219,26 @@ export enum AlertTypeEnum {
 export enum FailoverStrategyEnum {
   ALERT = 1,
   RESTART = 2,
+}
+
+export enum RestoreModeEnum {
+  NO_CLAIM = 1,
+  CLAIM = 2,
+  LEGACY = 3,
+}
+
+export enum AppExistsEnum {
+  NO = 0,
+  IN_DB = 1,
+  IN_YARN = 2,
+  IN_KUBERNETES = 3,
+  INVALID = 4,
+}
+
+export enum FlinkEnvCheckEnum {
+  INVALID_PATH = -1,
+  OK = 0,
+  NAME_REPEATED = 1,
+  FLINK_DIST_NOT_FOUND = 2,
+  FLINK_DIST_REPEATED = 3,
 }
